@@ -59,6 +59,7 @@ struct LegacyAppearanceProfileV1: Codable, Equatable, Sendable {
                 unavailableStripe: palette.unavailableStripe
             ),
             geometry: migratedGeometry,
+            statusItemGeometry: .default(for: theme),
             capabilities: newDefault.capabilities
         )
         .validated(for: theme)

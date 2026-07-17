@@ -264,6 +264,104 @@ struct ThemeGeometry: Codable, Equatable, Sendable {
     }
 }
 
+struct StatusItemGeometry: Codable, Equatable, Sendable {
+    var fontSize: Double
+    var outlineWidth: Double
+    var cornerRadius: Double
+    var shadowDepth: Double
+    var shadowBlur: Double
+    var horizontalPadding: Double
+    var tagHeight: Double
+
+    static func `default`(
+        for theme: AppearanceThemeID
+    ) -> StatusItemGeometry {
+        switch theme {
+        case .loud:
+            StatusItemGeometry(
+                fontSize: 10,
+                outlineWidth: 2,
+                cornerRadius: 0,
+                shadowDepth: 3,
+                shadowBlur: 0,
+                horizontalPadding: 7,
+                tagHeight: 18
+            )
+        case .bold:
+            StatusItemGeometry(
+                fontSize: 10,
+                outlineWidth: 1.5,
+                cornerRadius: 5,
+                shadowDepth: 2,
+                shadowBlur: 0,
+                horizontalPadding: 7,
+                tagHeight: 18
+            )
+        case .frost:
+            StatusItemGeometry(
+                fontSize: 10,
+                outlineWidth: 1.5,
+                cornerRadius: 7,
+                shadowDepth: 2,
+                shadowBlur: 0,
+                horizontalPadding: 7,
+                tagHeight: 18
+            )
+        }
+    }
+
+    func validated(
+        defaultingTo defaults: StatusItemGeometry
+    ) -> StatusItemGeometry {
+        func value(
+            _ candidate: Double,
+            in range: ClosedRange<Double>,
+            fallback: Double
+        ) -> Double {
+            guard candidate.isFinite else { return fallback }
+            return min(max(candidate, range.lowerBound), range.upperBound)
+        }
+
+        return StatusItemGeometry(
+            fontSize: value(
+                fontSize,
+                in: 8...14,
+                fallback: defaults.fontSize
+            ),
+            outlineWidth: value(
+                outlineWidth,
+                in: 0...4,
+                fallback: defaults.outlineWidth
+            ),
+            cornerRadius: value(
+                cornerRadius,
+                in: 0...12,
+                fallback: defaults.cornerRadius
+            ),
+            shadowDepth: value(
+                shadowDepth,
+                in: 0...6,
+                fallback: defaults.shadowDepth
+            ),
+            shadowBlur: value(
+                shadowBlur,
+                in: 0...8,
+                fallback: defaults.shadowBlur
+            ),
+            horizontalPadding: value(
+                horizontalPadding,
+                in: 2...14,
+                fallback: defaults.horizontalPadding
+            ),
+            tagHeight: value(
+                tagHeight,
+                in: 14...22,
+                fallback: defaults.tagHeight
+            )
+        )
+    }
+}
+
 struct ThemeCapabilities: Codable, Equatable, Sendable {
     var usesMaterial: Bool
     var uppercaseMetadata: Bool
@@ -271,12 +369,13 @@ struct ThemeCapabilities: Codable, Equatable, Sendable {
 }
 
 struct AppearanceProfile: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 2
+    static let currentSchemaVersion = 3
 
     var schemaVersion: Int
     var themeID: AppearanceThemeID
     var palette: ThemePalette
     var geometry: ThemeGeometry
+    var statusItemGeometry: StatusItemGeometry
     var capabilities: ThemeCapabilities
 
     func validated(for expectedTheme: AppearanceThemeID) -> AppearanceProfile {
@@ -295,6 +394,11 @@ struct AppearanceProfile: Codable, Equatable, Sendable {
             unavailableStripe: palette.unavailableStripe.clamped()
         )
         copy.geometry = geometry.clamped()
+        copy.statusItemGeometry = statusItemGeometry.validated(
+            defaultingTo: Self.default(
+                for: expectedTheme
+            ).statusItemGeometry
+        )
         copy.capabilities = Self.default(for: expectedTheme).capabilities
         return copy
     }
@@ -326,6 +430,7 @@ extension AppearanceProfile {
                     shadowBlur: 0,
                     surfaceOpacity: 1
                 ),
+                statusItemGeometry: .default(for: .loud),
                 capabilities: ThemeCapabilities(
                     usesMaterial: false,
                     uppercaseMetadata: true,
@@ -355,6 +460,7 @@ extension AppearanceProfile {
                     shadowBlur: 0,
                     surfaceOpacity: 1
                 ),
+                statusItemGeometry: .default(for: .bold),
                 capabilities: ThemeCapabilities(
                     usesMaterial: false,
                     uppercaseMetadata: false,
@@ -387,6 +493,7 @@ extension AppearanceProfile {
                     shadowBlur: 0,
                     surfaceOpacity: 0.55
                 ),
+                statusItemGeometry: .default(for: .frost),
                 capabilities: ThemeCapabilities(
                     usesMaterial: true,
                     uppercaseMetadata: false,
@@ -596,7 +703,7 @@ enum AppearanceResolver {
     ) -> ResolvedStatusItemAppearance {
         let profile = profile.validated(for: profile.themeID)
         let visuals = ThemeVisualRecipe.default(for: profile.themeID)
-            .resolved(using: profile.geometry, theme: profile.themeID)
+        let statusGeometry = profile.statusItemGeometry
         let primaryState = state(
             remainingPercent: primaryRemainingPercent,
             isUnavailable: isUnavailable || showsFailurePattern
@@ -632,14 +739,7 @@ enum AppearanceResolver {
         )
         return ResolvedStatusItemAppearance(
             themeID: profile.themeID,
-            fontSize: min(
-                max(
-                    visuals.typography.statusSize
-                        * profile.geometry.fontScale,
-                    9
-                ),
-                12.5
-            ),
+            fontSize: statusGeometry.fontSize,
             fontFamily: visuals.typography.statusFamily,
             fontWeight: visuals.typography.statusWeight,
             fillColor: fill,
@@ -650,13 +750,13 @@ enum AppearanceResolver {
             ),
             unavailableBaseColor: profile.palette.unavailableBase,
             unavailableStripeColor: profile.palette.unavailableStripe,
-            outlineWidth: visuals.statusChip.outlineWidth,
-            cornerRadius: visuals.statusChip.cornerRadius,
-            shadowDepth: visuals.statusChip.shadow.depth,
-            shadowBlur: visuals.statusChip.shadow.blur,
+            outlineWidth: statusGeometry.outlineWidth,
+            cornerRadius: statusGeometry.cornerRadius,
+            shadowDepth: statusGeometry.shadowDepth,
+            shadowBlur: statusGeometry.shadowBlur,
             shadowOpacity: visuals.statusChip.shadow.opacity,
-            horizontalPadding: visuals.statusHorizontalPadding,
-            tagHeight: visuals.statusTagHeight
+            horizontalPadding: statusGeometry.horizontalPadding,
+            tagHeight: statusGeometry.tagHeight
         )
     }
 }

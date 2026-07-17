@@ -234,7 +234,7 @@ struct AppearanceStoreTests {
         let store = AppearanceStore(defaults: defaults)
         let migrated = store.profile(for: .bold)
 
-        #expect(migrated.schemaVersion == 2)
+        #expect(migrated.schemaVersion == 3)
         #expect(migrated.palette.background == AppearanceColor(hex: 0xABCDEF))
         #expect(
             migrated.palette.actionAccent
@@ -303,7 +303,7 @@ struct AppearanceStoreTests {
             AppearanceProfile.self,
             from: versionTwoData
         )
-        #expect(persisted.schemaVersion == 2)
+        #expect(persisted.schemaVersion == 3)
         #expect(
             persisted.palette.actionAccent
                 == AppearanceColor(hex: 0xFF676B)

@@ -256,10 +256,15 @@ struct ThemeVisualRecipeTests {
     func extremeMenuBarEffectsPreserveLegibleTextInsideTheTag() {
         for theme in AppearanceThemeID.allCases {
             var profile = AppearanceProfile.default(for: theme)
-            profile.geometry.fontScale = 1.25
-            profile.geometry.outlineWidth = 4
-            profile.geometry.shadowDepth = 10
-            profile.geometry.shadowBlur = 20
+            profile.statusItemGeometry = StatusItemGeometry(
+                fontSize: 14,
+                outlineWidth: 4,
+                cornerRadius: 12,
+                shadowDepth: 6,
+                shadowBlur: 8,
+                horizontalPadding: 14,
+                tagHeight: 22
+            )
 
             let resolved = AppearanceResolver.status(
                 profile: profile,
