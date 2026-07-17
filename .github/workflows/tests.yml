@@ -1,0 +1,25 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Swift version
+        run: swift --version
+      - name: Check shell syntax
+        run: bash -n scripts/*.sh
+      - name: Run Swift tests
+        run: scripts/test.sh
+      - name: Test source installation
+        run: scripts/test-install.sh
