@@ -12,10 +12,14 @@ enum AppearancePersistenceKey {
     static let editorFontScale = "appearance.editorFontScale.v1"
 
     static func profile(_ theme: AppearanceThemeID) -> String {
+        "appearance.profile.\(theme.rawValue).v3"
+    }
+
+    static func legacyProfileV2(_ theme: AppearanceThemeID) -> String {
         "appearance.profile.\(theme.rawValue).v2"
     }
 
-    static func legacyProfile(_ theme: AppearanceThemeID) -> String {
+    static func legacyProfileV1(_ theme: AppearanceThemeID) -> String {
         "appearance.profile.\(theme.rawValue).v1"
     }
 }
@@ -31,6 +35,76 @@ struct LegacyThemePaletteV1: Codable, Equatable, Sendable {
     var unavailableStripe: AppearanceColor
 }
 
+struct LegacyAppearanceProfileV2: Codable, Equatable, Sendable {
+    var schemaVersion: Int
+    var themeID: AppearanceThemeID
+    var palette: ThemePalette
+    var geometry: ThemeGeometry
+    var capabilities: ThemeCapabilities
+
+    static func `default`(
+        for theme: AppearanceThemeID
+    ) -> LegacyAppearanceProfileV2 {
+        let profile = AppearanceProfile.default(for: theme)
+        return LegacyAppearanceProfileV2(
+            schemaVersion: 2,
+            themeID: theme,
+            palette: profile.palette,
+            geometry: profile.geometry,
+            capabilities: profile.capabilities
+        )
+    }
+
+    func migrated(
+        for theme: AppearanceThemeID
+    ) -> AppearanceProfile {
+        let correctedGeometry = geometry.clamped()
+        return AppearanceProfile(
+            schemaVersion: AppearanceProfile.currentSchemaVersion,
+            themeID: theme,
+            palette: palette,
+            geometry: correctedGeometry,
+            statusItemGeometry:
+                .migratedFromVersionTwo(
+                    theme: theme,
+                    panelGeometry: correctedGeometry
+                ),
+            capabilities: AppearanceProfile.default(
+                for: theme
+            ).capabilities
+        )
+        .validated(for: theme)
+    }
+}
+
+extension StatusItemGeometry {
+    static func migratedFromVersionTwo(
+        theme: AppearanceThemeID,
+        panelGeometry: ThemeGeometry
+    ) -> StatusItemGeometry {
+        let panelGeometry = panelGeometry.clamped()
+        let visuals = ThemeVisualRecipe.default(for: theme)
+            .resolved(using: panelGeometry, theme: theme)
+        return StatusItemGeometry(
+            fontSize: min(
+                max(
+                    visuals.typography.statusSize
+                        * panelGeometry.fontScale,
+                    9
+                ),
+                12.5
+            ),
+            outlineWidth: visuals.statusChip.outlineWidth,
+            cornerRadius: visuals.statusChip.cornerRadius,
+            shadowDepth: visuals.statusChip.shadow.depth,
+            shadowBlur: visuals.statusChip.shadow.blur,
+            horizontalPadding: visuals.statusHorizontalPadding,
+            tagHeight: visuals.statusTagHeight
+        )
+        .validated(defaultingTo: .default(for: theme))
+    }
+}
+
 struct LegacyAppearanceProfileV1: Codable, Equatable, Sendable {
     var schemaVersion: Int
     var themeID: AppearanceThemeID
@@ -38,14 +112,16 @@ struct LegacyAppearanceProfileV1: Codable, Equatable, Sendable {
     var geometry: ThemeGeometry
     var capabilities: ThemeCapabilities
 
-    func migrated(for theme: AppearanceThemeID) -> AppearanceProfile {
+    func migratedToVersionTwo(
+        for theme: AppearanceThemeID
+    ) -> LegacyAppearanceProfileV2 {
         let newDefault = AppearanceProfile.default(for: theme)
         let migratedGeometry = geometry == Self.default(for: theme).geometry
             ? newDefault.geometry
             : geometry
 
-        return AppearanceProfile(
-            schemaVersion: AppearanceProfile.currentSchemaVersion,
+        return LegacyAppearanceProfileV2(
+            schemaVersion: 2,
             themeID: theme,
             palette: ThemePalette(
                 background: palette.background,
@@ -59,10 +135,8 @@ struct LegacyAppearanceProfileV1: Codable, Equatable, Sendable {
                 unavailableStripe: palette.unavailableStripe
             ),
             geometry: migratedGeometry,
-            statusItemGeometry: .default(for: theme),
             capabilities: newDefault.capabilities
         )
-        .validated(for: theme)
     }
 }
 
@@ -222,16 +296,32 @@ final class AppearanceStore: ObservableObject {
             }
 
             if
-                let legacyData = defaults.data(
-                    forKey: AppearancePersistenceKey.legacyProfile(theme)
+                let data = defaults.data(
+                    forKey: AppearancePersistenceKey.legacyProfileV2(theme)
                 ),
-                let legacy = try? decoder.decode(
-                    LegacyAppearanceProfileV1.self,
-                    from: legacyData
+                let decoded = try? decoder.decode(
+                    LegacyAppearanceProfileV2.self,
+                    from: data
                 ),
-                legacy.schemaVersion == 1
+                decoded.schemaVersion == 2
             {
-                loaded[theme] = legacy.migrated(for: theme)
+                loaded[theme] = decoded.migrated(for: theme)
+                continue
+            }
+
+            if
+                let data = defaults.data(
+                    forKey: AppearancePersistenceKey.legacyProfileV1(theme)
+                ),
+                let decoded = try? decoder.decode(
+                    LegacyAppearanceProfileV1.self,
+                    from: data
+                ),
+                decoded.schemaVersion == 1
+            {
+                loaded[theme] = decoded
+                    .migratedToVersionTwo(for: theme)
+                    .migrated(for: theme)
                 continue
             }
 

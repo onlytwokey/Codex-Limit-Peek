@@ -122,22 +122,93 @@ struct AppearanceStoreTests {
     }
 
     @Test @MainActor
+    func statusItemGeometryRoundTripsIndependentlyForEveryTheme() {
+        let defaults = isolatedDefaults()
+        let store = AppearanceStore(defaults: defaults)
+        let expected: [AppearanceThemeID: StatusItemGeometry] = [
+            .loud: StatusItemGeometry(
+                fontSize: 8.5,
+                outlineWidth: 0.5,
+                cornerRadius: 2,
+                shadowDepth: 1,
+                shadowBlur: 0.5,
+                horizontalPadding: 3,
+                tagHeight: 15
+            ),
+            .bold: StatusItemGeometry(
+                fontSize: 11,
+                outlineWidth: 2,
+                cornerRadius: 6,
+                shadowDepth: 3,
+                shadowBlur: 2,
+                horizontalPadding: 8,
+                tagHeight: 18
+            ),
+            .frost: StatusItemGeometry(
+                fontSize: 13.5,
+                outlineWidth: 3.5,
+                cornerRadius: 11,
+                shadowDepth: 5.5,
+                shadowBlur: 7.5,
+                horizontalPadding: 13.5,
+                tagHeight: 21.5
+            )
+        ]
+
+        for theme in AppearanceThemeID.allCases {
+            store.select(theme)
+            store.updateCurrent {
+                $0.statusItemGeometry = expected[theme]!
+            }
+        }
+        store.flushPendingSave()
+
+        let restored = AppearanceStore(defaults: defaults)
+        for theme in AppearanceThemeID.allCases {
+            #expect(
+                restored.profile(for: theme).statusItemGeometry
+                    == expected[theme]
+            )
+        }
+    }
+
+    @Test @MainActor
     func resetOnlyChangesTheSelectedTheme() {
         let defaults = isolatedDefaults()
         let store = AppearanceStore(defaults: defaults)
-        store.updateCurrent { $0.geometry.fontScale = 1.2 }
+        store.updateCurrent {
+            $0.geometry.fontScale = 1.2
+            $0.statusItemGeometry.fontSize = 13
+        }
         store.select(.bold)
-        store.updateCurrent { $0.geometry.fontScale = 0.9 }
+        store.updateCurrent {
+            $0.geometry.fontScale = 0.9
+            $0.statusItemGeometry.fontSize = 8.5
+        }
 
         store.resetCurrentTheme()
 
         #expect(store.profile(for: .bold) == .default(for: .bold))
         #expect(store.profile(for: .loud).geometry.fontScale == 1.2)
+        #expect(
+            store.profile(for: .bold).statusItemGeometry
+                == .default(for: .bold)
+        )
+        #expect(
+            store.profile(for: .loud).statusItemGeometry.fontSize == 13
+        )
 
         store.flushPendingSave()
         let restored = AppearanceStore(defaults: defaults)
         #expect(restored.profile(for: .bold) == .default(for: .bold))
         #expect(restored.profile(for: .loud).geometry.fontScale == 1.2)
+        #expect(
+            restored.profile(for: .bold).statusItemGeometry
+                == .default(for: .bold)
+        )
+        #expect(
+            restored.profile(for: .loud).statusItemGeometry.fontSize == 13
+        )
     }
 
     @Test @MainActor
@@ -222,13 +293,13 @@ struct AppearanceStoreTests {
     }
 
     @Test @MainActor
-    func versionOneProfileMigratesToVersionTwoWithoutLosingCustomColors() throws {
+    func versionOneProfileMigratesToVersionThreeWithoutLosingCustomColors() throws {
         let defaults = isolatedDefaults()
         var legacy = LegacyAppearanceProfileV1.default(for: .bold)
         legacy.palette.background = AppearanceColor(hex: 0xABCDEF)
         defaults.set(
             try JSONEncoder().encode(legacy),
-            forKey: AppearancePersistenceKey.legacyProfile(.bold)
+            forKey: AppearancePersistenceKey.legacyProfileV1(.bold)
         )
 
         let store = AppearanceStore(defaults: defaults)
@@ -243,19 +314,91 @@ struct AppearanceStoreTests {
     }
 
     @Test @MainActor
+    func versionTwoProfileMigratesWithEquivalentStatusAppearance() throws {
+        let defaults = isolatedDefaults()
+        var legacy = LegacyAppearanceProfileV2.default(for: .bold)
+        legacy.geometry.fontScale = 1.2
+        legacy.geometry.outlineWidth = 3
+        legacy.geometry.cornerRadius = 9
+        legacy.geometry.shadowDepth = 7
+        legacy.geometry.shadowBlur = 4
+        defaults.set(
+            try JSONEncoder().encode(legacy),
+            forKey: AppearancePersistenceKey.legacyProfileV2(.bold)
+        )
+
+        let migrated = AppearanceStore(defaults: defaults).profile(for: .bold)
+        let expected = StatusItemGeometry.migratedFromVersionTwo(
+            theme: .bold,
+            panelGeometry: legacy.geometry
+        )
+
+        #expect(migrated.schemaVersion == 3)
+        #expect(migrated.geometry == legacy.geometry.clamped())
+        #expect(migrated.statusItemGeometry == expected)
+    }
+
+    @Test @MainActor
+    func malformedVersionThreeFallsBackToValidVersionTwo() throws {
+        let defaults = isolatedDefaults()
+        var legacy = LegacyAppearanceProfileV2.default(for: .frost)
+        legacy.palette.background = AppearanceColor(hex: 0xABCDEF)
+        defaults.set(
+            Data("broken-v3".utf8),
+            forKey: AppearancePersistenceKey.profile(.frost)
+        )
+        defaults.set(
+            try JSONEncoder().encode(legacy),
+            forKey: AppearancePersistenceKey.legacyProfileV2(.frost)
+        )
+
+        let restored = AppearanceStore(defaults: defaults)
+
+        #expect(
+            restored.profile(for: .frost).palette.background
+                == AppearanceColor(hex: 0xABCDEF)
+        )
+        #expect(restored.profile(for: .frost).schemaVersion == 3)
+    }
+
+    @Test @MainActor
+    func validVersionThreeWinsOverOlderProfiles() throws {
+        let defaults = isolatedDefaults()
+        var current = AppearanceProfile.default(for: .loud)
+        current.palette.background = AppearanceColor(hex: 0x123456)
+        var legacy = LegacyAppearanceProfileV2.default(for: .loud)
+        legacy.palette.background = AppearanceColor(hex: 0xABCDEF)
+        defaults.set(
+            try JSONEncoder().encode(current),
+            forKey: AppearancePersistenceKey.profile(.loud)
+        )
+        defaults.set(
+            try JSONEncoder().encode(legacy),
+            forKey: AppearancePersistenceKey.legacyProfileV2(.loud)
+        )
+
+        let restored = AppearanceStore(defaults: defaults)
+
+        #expect(
+            restored.profile(for: .loud).palette.background
+                == AppearanceColor(hex: 0x123456)
+        )
+    }
+
+    @Test @MainActor
     func untouchedLegacyGeometryMovesToCorrectedReferenceDefaults() throws {
         let defaults = isolatedDefaults()
         defaults.set(
             try JSONEncoder().encode(
                 LegacyAppearanceProfileV1.default(for: .loud)
             ),
-            forKey: AppearancePersistenceKey.legacyProfile(.loud)
+            forKey: AppearancePersistenceKey.legacyProfileV1(.loud)
         )
         defaults.set(
             try JSONEncoder().encode(
                 LegacyAppearanceProfileV1.default(for: .frost)
             ),
-            forKey: AppearancePersistenceKey.legacyProfile(.frost)
+            forKey: AppearancePersistenceKey.legacyProfileV1(.frost)
         )
 
         let store = AppearanceStore(defaults: defaults)
@@ -272,7 +415,7 @@ struct AppearanceStoreTests {
         legacy.geometry.shadowDepth = 4
         defaults.set(
             try JSONEncoder().encode(legacy),
-            forKey: AppearancePersistenceKey.legacyProfile(.loud)
+            forKey: AppearancePersistenceKey.legacyProfileV1(.loud)
         )
 
         let migrated = AppearanceStore(defaults: defaults).profile(for: .loud)
@@ -282,31 +425,46 @@ struct AppearanceStoreTests {
     }
 
     @Test @MainActor
-    func savingAMigratedProfileWritesV2WithoutDeletingV1() throws {
+    func savingMigrationKeepsVersionOneAndVersionTwoData() throws {
         let defaults = isolatedDefaults()
-        let legacyData = try JSONEncoder().encode(
-            LegacyAppearanceProfileV1.default(for: .frost)
+        let versionOneData = try JSONEncoder().encode(
+            LegacyAppearanceProfileV1.default(for: .loud)
         )
-        let legacyKey = AppearancePersistenceKey.legacyProfile(.frost)
-        defaults.set(legacyData, forKey: legacyKey)
+        let versionTwoData = try JSONEncoder().encode(
+            LegacyAppearanceProfileV2.default(for: .loud)
+        )
+        defaults.set(
+            versionOneData,
+            forKey: AppearancePersistenceKey.legacyProfileV1(.loud)
+        )
+        defaults.set(
+            versionTwoData,
+            forKey: AppearancePersistenceKey.legacyProfileV2(.loud)
+        )
 
         let store = AppearanceStore(defaults: defaults)
         store.flushPendingSave()
 
-        #expect(defaults.data(forKey: legacyKey) == legacyData)
-        let versionTwoData = try #require(
+        #expect(
             defaults.data(
-                forKey: AppearancePersistenceKey.profile(.frost)
+                forKey: AppearancePersistenceKey.legacyProfileV1(.loud)
+            ) == versionOneData
+        )
+        #expect(
+            defaults.data(
+                forKey: AppearancePersistenceKey.legacyProfileV2(.loud)
+            ) == versionTwoData
+        )
+        let versionThreeData = try #require(
+            defaults.data(
+                forKey: AppearancePersistenceKey.profile(.loud)
             )
         )
-        let persisted = try JSONDecoder().decode(
-            AppearanceProfile.self,
-            from: versionTwoData
-        )
-        #expect(persisted.schemaVersion == 3)
         #expect(
-            persisted.palette.actionAccent
-                == AppearanceColor(hex: 0xFF676B)
+            try JSONDecoder().decode(
+                AppearanceProfile.self,
+                from: versionThreeData
+            ).schemaVersion == 3
         )
     }
 
