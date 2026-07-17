@@ -46,6 +46,15 @@ private final class RecordingColorPanelCoordinator:
 @Suite(.serialized)
 struct MoreOverlayTests {
     @Test
+    func statusItemPageUsesTheFixedScrollableEditorSize() {
+        #expect(
+            MoreOverlayPage.statusItem.fixedSize
+                == MoreOverlayMetrics.statusItemSize
+        )
+        #expect(MoreOverlayPage.statusItem.width == 320)
+    }
+
+    @Test
     func preferredLayoutAlignsRightEdgeAndKeepsEightPointGap() {
         let anchor = NSRect(x: 600, y: 760, width: 25, height: 25)
         let visible = NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -516,6 +525,16 @@ struct MoreOverlayTests {
                 )
         )
 
+        appearance.setEditorFontScale(1.5)
+        presenter.navigate(to: .statusItem)
+        #expect(presenter.page == .statusItem)
+        #expect(
+            pair.interaction.frame.size
+                == MoreOverlayMetrics.statusItemSize
+        )
+        #expect(pair.interaction.hasNestedScrollView)
+        presenter.navigate(to: .appearance)
+
         presenter.close()
         #expect(pair.interaction.parent == nil)
         #expect(pair.hitShield.parent == nil)
@@ -555,7 +574,7 @@ struct MoreOverlayTests {
     }
 
     @Test @MainActor
-    func liveAppearanceUpdatesPreserveTheHostedEditorRoot() async {
+    func liveAppearanceUpdatesPreserveTheHostedEditorRoot() async throws {
         let suite = "MoreOverlayTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -590,6 +609,7 @@ struct MoreOverlayTests {
         presenter.present()
         presenter.navigate(to: .appearance)
         defer { presenter.close() }
+        let pair = try #require(presenter.ensureWindowPair())
 
         let replacements = presenter.interactionRootReplacementCount
         appearance.updateCurrent { profile in
@@ -601,6 +621,23 @@ struct MoreOverlayTests {
         #expect(
             presenter.interactionRootReplacementCount == replacements
         )
+
+        presenter.navigate(to: .statusItem)
+        let statusReplacements =
+            presenter.interactionRootReplacementCount
+
+        appearance.updateCurrent {
+            $0.statusItemGeometry.shadowBlur += 0.5
+        }
+        await Task.yield()
+        await Task.yield()
+
+        #expect(presenter.page == .statusItem)
+        #expect(
+            presenter.interactionRootReplacementCount
+                == statusReplacements
+        )
+        #expect(pair.interaction.hasNestedScrollView)
     }
 }
 

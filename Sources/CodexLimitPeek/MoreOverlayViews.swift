@@ -59,8 +59,14 @@ struct MoreOverlayInteractionView: View {
             AppearanceEditorView(
                 store: appearanceStore,
                 onBack: { onNavigate(.actions) },
+                onStatusItem: { onNavigate(.statusItem) },
                 onStateColors: { onNavigate(.stateColors) },
                 onOpenCustomColor: onOpenCustomColor
+            )
+        case .statusItem:
+            StatusItemEditorView(
+                store: appearanceStore,
+                onBack: { onNavigate(.appearance) }
             )
         case .stateColors:
             StateColorsEditorView(

@@ -5,13 +5,14 @@ import SwiftUI
 enum MoreOverlayPage: Equatable, Sendable {
     case actions
     case appearance
+    case statusItem
     case stateColors
 
     var width: CGFloat {
         switch self {
         case .actions:
             MoreOverlayMetrics.actionsWidth
-        case .appearance, .stateColors:
+        case .appearance, .statusItem, .stateColors:
             320
         }
     }
@@ -22,6 +23,8 @@ enum MoreOverlayPage: Equatable, Sendable {
             nil
         case .appearance:
             MoreOverlayMetrics.appearanceSize
+        case .statusItem:
+            MoreOverlayMetrics.statusItemSize
         case .stateColors:
             MoreOverlayMetrics.stateColorsSize
         }
@@ -40,6 +43,7 @@ enum MoreOverlayMetrics {
     static let shadowSafetyInset = ThemePanelLayout.shadowSafetyInset
     static let actionsWidth: CGFloat = 224
     static let appearanceSize = NSSize(width: 320, height: 548)
+    static let statusItemSize = NSSize(width: 320, height: 548)
     static let stateColorsSize = NSSize(width: 320, height: 430)
 
     static func layout(
