@@ -15,22 +15,89 @@ struct CodexLimitPeekApp: App {
     }
 }
 
-private enum PanelMetrics {
-    static let cardWidth: CGFloat = 360
-    static let cardHeight: CGFloat = 220
-    static let windowPadding: CGFloat = 14
-    static let width: CGFloat = cardWidth + windowPadding * 2
-    static let height: CGFloat = cardHeight + windowPadding * 2
+enum PanelMetrics {
+    static let cardWidth = ThemePanelLayout.width
+    static let cardHeight = ThemePanelLayout.height
+    static let shadowInset = ThemePanelLayout.shadowSafetyInset
+    static let shadowWidth: CGFloat = cardWidth + shadowInset * 2
+    static let shadowHeight: CGFloat = cardHeight + shadowInset * 2
     static let verticalGap: CGFloat = 14
     static let screenPadding: CGFloat = 8
+
+    static func contentFrame(
+        relativeTo anchorRect: NSRect,
+        within visibleFrame: NSRect,
+        shadowInsets: EdgeInsets
+    ) -> NSRect {
+        let proposedX = anchorRect.midX - cardWidth / 2
+        let minimumX = visibleFrame.minX
+            + screenPadding
+            + shadowInsets.leading
+        let maximumX = max(
+            minimumX,
+            visibleFrame.maxX
+                - cardWidth
+                - screenPadding
+                - shadowInsets.trailing
+        )
+        let x = min(
+            max(proposedX, minimumX),
+            maximumX
+        )
+        let minimumY = visibleFrame.minY
+            + screenPadding
+            + shadowInsets.bottom
+        let maximumY = min(
+            anchorRect.minY - cardHeight - verticalGap,
+            visibleFrame.maxY
+                - cardHeight
+                - screenPadding
+                - shadowInsets.top
+        )
+        let y = max(minimumY, maximumY)
+        return NSRect(
+            x: x,
+            y: y,
+            width: cardWidth,
+            height: cardHeight
+        )
+    }
+
+    static func shadowFrame(
+        around contentFrame: NSRect
+    ) -> NSRect {
+        contentFrame.insetBy(dx: -shadowInset, dy: -shadowInset)
+    }
+
+    static func visualFrame(
+        around contentFrame: NSRect,
+        shadowInsets: EdgeInsets
+    ) -> NSRect {
+        NSRect(
+            x: contentFrame.minX - shadowInsets.leading,
+            y: contentFrame.minY - shadowInsets.bottom,
+            width: contentFrame.width
+                + shadowInsets.leading
+                + shadowInsets.trailing,
+            height: contentFrame.height
+                + shadowInsets.top
+                + shadowInsets.bottom
+        )
+    }
 }
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let quotaStore = QuotaStore()
+    private let appearanceStore = AppearanceStore()
+    private lazy var moreOverlayPresenter = MoreOverlayPresenter(
+        quotaStore: quotaStore,
+        appearanceStore: appearanceStore
+    )
     private var statusItem: NSStatusItem?
     private var statusView: CompactStatusItemView?
     private var panelWindow: NSPanel?
+    private var panelShadowWindow: NSPanel?
     private var outsideClickMonitor: Any?
     private var snapshotCancellable: AnyCancellable?
 
@@ -40,15 +107,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureWakeRefreshObservers()
         quotaStore.start()
 
-        snapshotCancellable = Publishers.CombineLatest(
+        snapshotCancellable = Publishers.CombineLatest3(
             quotaStore.$snapshot,
-            quotaStore.$refreshHealth
-        ).sink { [weak self] snapshot, health in
+            quotaStore.$refreshHealth,
+            appearanceStore.$revision
+        ).sink { [weak self] snapshot, health, _ in
             self?.updateStatusItem(with: snapshot, health: health)
+            self?.scheduleVisiblePanelReposition()
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        moreOverlayPresenter.close()
+        appearanceStore.flushPendingSave()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         stopOutsideClickMonitor()
     }
@@ -71,6 +142,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelWindow != nil
     }
 
+    var isMoreOverlayWindowLoaded: Bool {
+        moreOverlayPresenter.isWindowPairLoaded
+    }
+
+    var moreOverlayPageForTesting: MoreOverlayPage {
+        moreOverlayPresenter.page
+    }
+
+    func setMoreOverlayPageForTesting(_ page: MoreOverlayPage) {
+        moreOverlayPresenter.navigate(to: page)
+    }
+
+    func closePanelForTesting() {
+        closePanel()
+    }
+
     @discardableResult
     func ensurePanelWindow() -> NSPanel {
         if let panelWindow {
@@ -78,7 +165,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: PanelMetrics.width, height: PanelMetrics.height),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: PanelMetrics.cardWidth,
+                height: PanelMetrics.cardHeight
+            ),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -90,10 +182,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.level = .popUpMenu
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentViewController = NSHostingController(
-            rootView: StatusPanelView(store: quotaStore)
-                .frame(width: PanelMetrics.width, height: PanelMetrics.height)
+            rootView: StatusPanelView(
+                store: quotaStore,
+                appearanceStore: appearanceStore,
+                moreOverlayPresenter: moreOverlayPresenter
+            )
+                .frame(
+                    width: PanelMetrics.cardWidth,
+                    height: PanelMetrics.cardHeight
+                )
         )
+
+        let shadowPanel = NSPanel(
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: PanelMetrics.shadowWidth,
+                height: PanelMetrics.shadowHeight
+            ),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        shadowPanel.backgroundColor = .clear
+        shadowPanel.isOpaque = false
+        shadowPanel.hasShadow = false
+        shadowPanel.hidesOnDeactivate = false
+        shadowPanel.ignoresMouseEvents = true
+        shadowPanel.level = .popUpMenu
+        shadowPanel.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary
+        ]
+        shadowPanel.contentViewController = NSHostingController(
+            rootView: StatusPanelShadowView(
+                store: quotaStore,
+                appearanceStore: appearanceStore
+            )
+            .frame(
+                width: PanelMetrics.shadowWidth,
+                height: PanelMetrics.shadowHeight
+            )
+        )
+
         panelWindow = panel
+        panelShadowWindow = shadowPanel
+        panel.addChildWindow(shadowPanel, ordered: .below)
+        moreOverlayPresenter.attach(to: panel)
         return panel
     }
 
@@ -123,6 +258,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let title = snapshot.menuBarTitle
         let weeklyTitle = snapshot.menuBarTrailingTitle
         let isFailure = health.showsFailurePattern
+        let appearance = AppearanceResolver.status(
+            profile: appearanceStore.currentProfile,
+            primaryRemainingPercent: snapshot.remainingPercent,
+            weeklyRemainingPercent: snapshot.weeklyRemainingPercent,
+            isUnavailable: snapshot.isUnavailable,
+            showsFailurePattern: isFailure
+        )
+        .fitted(to: Double(NSStatusBar.system.thickness))
         let healthText = QuotaStatusFormatter.header(
             snapshot: snapshot,
             health: health,
@@ -146,10 +289,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusView?.update(
             title: title,
             weeklyTitle: weeklyTitle,
-            color: isFailure
-                ? NSColor(calibratedRed: 0.44, green: 0.06, blue: 0.09, alpha: 1)
-                : snapshot.tagTextColor,
-            backgroundColor: snapshot.tagBackgroundColor,
+            appearance: appearance,
             showsFailurePattern: isFailure,
             tooltip: tooltip
         )
@@ -164,6 +304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             closePanel()
         } else {
             positionPanel(relativeTo: statusView)
+            panelShadowWindow?.orderFrontRegardless()
             panelWindow.orderFrontRegardless()
             startOutsideClickMonitor()
             quotaStore.refresh(force: false)
@@ -171,8 +312,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func closePanel() {
+        moreOverlayPresenter.close()
         panelWindow?.orderOut(nil)
+        panelShadowWindow?.orderOut(nil)
         stopOutsideClickMonitor()
+    }
+
+    private func scheduleVisiblePanelReposition() {
+        guard panelWindow?.isVisible == true else { return }
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard
+                let self,
+                self.panelWindow?.isVisible == true,
+                let statusView = self.statusView
+            else {
+                return
+            }
+            self.positionPanel(relativeTo: statusView)
+        }
     }
 
     private func positionPanel(relativeTo anchorView: NSView) {
@@ -180,21 +338,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let anchorRectInWindow = anchorView.convert(anchorView.bounds, to: nil)
         let anchorRect = window.convertToScreen(anchorRectInWindow)
         let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame ?? .zero
-        let proposedX = anchorRect.midX - PanelMetrics.width / 2
-        let x = min(
-            max(proposedX, visibleFrame.minX + PanelMetrics.screenPadding),
-            visibleFrame.maxX - PanelMetrics.width - PanelMetrics.screenPadding
+        let panelAppearance = AppearanceResolver.panel(
+            profile: appearanceStore.currentProfile,
+            primaryRemainingPercent: quotaStore.snapshot.remainingPercent,
+            weeklyRemainingPercent: quotaStore.snapshot.weeklyRemainingPercent,
+            isUnavailable: quotaStore.snapshot.isUnavailable
         )
-        let y = anchorRect.minY - PanelMetrics.height - PanelMetrics.verticalGap
-        panelWindow?.setFrame(
-            NSRect(x: x, y: y, width: PanelMetrics.width, height: PanelMetrics.height),
+        let shadowInsets = panelAppearance.visuals.panelShell.shadow.visualInsets
+        let contentFrame = PanelMetrics.contentFrame(
+            relativeTo: anchorRect,
+            within: visibleFrame,
+            shadowInsets: shadowInsets
+        )
+        panelWindow?.setFrame(contentFrame, display: true)
+        panelShadowWindow?.setFrame(
+            PanelMetrics.shadowFrame(around: contentFrame),
             display: true
         )
+        moreOverlayPresenter.reposition()
     }
 
     private func startOutsideClickMonitor() {
         stopOutsideClickMonitor()
-        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] _ in
             Task { @MainActor in
                 self?.closePanel()
             }
@@ -216,36 +384,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 final class CompactStatusItemView: NSView {
     var onClick: (() -> Void)?
 
-    private let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
-    private let horizontalPadding: CGFloat = 5
-    private let weeklyTextColor = NSColor(
-        calibratedRed: 0.180,
-        green: 0.063,
-        blue: 0.396,
-        alpha: 1
-    )
     private var title = ""
     private var weeklyTitle: String?
-    private var color = NSColor.labelColor
-    private var backgroundColor = NSColor.clear
+    private var resolvedAppearance = AppearanceResolver.status(
+        profile: .default(for: .loud),
+        primaryRemainingPercent: 100,
+        weeklyRemainingPercent: 100,
+        isUnavailable: false,
+        showsFailurePattern: false
+    )
     private var showsFailurePattern = false
+
+    private var horizontalPadding: CGFloat {
+        CGFloat(resolvedAppearance.horizontalPadding)
+    }
 
     func update(
         title: String,
         weeklyTitle: String?,
-        color: NSColor,
-        backgroundColor: NSColor,
+        appearance: ResolvedStatusItemAppearance,
         showsFailurePattern: Bool,
         tooltip: String
     ) {
         self.title = title
         self.weeklyTitle = weeklyTitle
-        self.color = color
-        self.backgroundColor = backgroundColor
+        resolvedAppearance = appearance
         self.showsFailurePattern = showsFailurePattern
         self.toolTip = tooltip
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("Codex Limit Peek")
+        setAccessibilityValue(
+            [title, weeklyTitle]
+                .compactMap { $0 }
+                .filter { !$0.isEmpty }
+                .joined(separator: " | ")
+        )
+        setAccessibilityHelp(tooltip)
 
-        let width = ceil(attributedTitle.size().width + horizontalPadding * 2)
+        let chromeWidth = CGFloat(
+            appearance.outlineWidth * 2
+                + appearance.shadowDepth
+                + appearance.shadowBlur * 2
+        )
+        let width = ceil(
+            attributedTitle.size().width
+                + horizontalPadding * 2
+                + chromeWidth
+        )
         frame = NSRect(x: 0, y: 0, width: width, height: NSStatusBar.system.thickness)
         needsDisplay = true
     }
@@ -254,23 +440,71 @@ final class CompactStatusItemView: NSView {
         super.draw(dirtyRect)
 
         let size = attributedTitle.size()
-        let tagRect = NSRect(
-            x: 0,
-            y: floor((bounds.height - 17) / 2),
-            width: bounds.width,
-            height: 17
+        let outlineWidth = CGFloat(resolvedAppearance.outlineWidth)
+        let shadowDepth = CGFloat(resolvedAppearance.shadowDepth)
+        let shadowBlur = CGFloat(resolvedAppearance.shadowBlur)
+        let cornerRadius = CGFloat(resolvedAppearance.cornerRadius)
+        let availableHeight = max(
+            8,
+            bounds.height - shadowDepth - shadowBlur * 2 - 1
         )
-        let tagPath = NSBezierPath(roundedRect: tagRect, xRadius: 5, yRadius: 5)
+        let tagHeight = min(
+            CGFloat(resolvedAppearance.tagHeight),
+            availableHeight
+        )
+        let drawableHeight = max(1, bounds.height - shadowBlur * 2)
+        let tagRect = NSRect(
+            x: shadowBlur + outlineWidth / 2,
+            y: shadowBlur
+                + floor(
+                    (drawableHeight - tagHeight + shadowDepth) / 2
+                ),
+            width: max(
+                1,
+                bounds.width
+                    - shadowDepth
+                    - outlineWidth
+                    - shadowBlur * 2
+            ),
+            height: tagHeight
+        )
+        let tagPath = NSBezierPath(
+            roundedRect: tagRect,
+            xRadius: min(cornerRadius, tagHeight / 2),
+            yRadius: min(cornerRadius, tagHeight / 2)
+        )
+
+        NSGraphicsContext.saveGraphicsState()
+        if shadowDepth > 0 || shadowBlur > 0 {
+            let shadow = NSShadow()
+            shadow.shadowColor = resolvedAppearance.outlineColor.nsColor
+                .withAlphaComponent(
+                    CGFloat(resolvedAppearance.shadowOpacity)
+                )
+            shadow.shadowOffset = NSSize(width: shadowDepth, height: -shadowDepth)
+            shadow.shadowBlurRadius = shadowBlur
+            shadow.set()
+        }
+        let baseFill = showsFailurePattern
+            ? resolvedAppearance.unavailableBaseColor.nsColor
+            : resolvedAppearance.fillColor.nsColor
+        baseFill.setFill()
+        tagPath.fill()
+        NSGraphicsContext.restoreGraphicsState()
+
         if showsFailurePattern {
             drawFailurePattern(in: tagRect, clippedBy: tagPath)
-        } else {
-            backgroundColor.setFill()
-            tagPath.fill()
+        }
+
+        if outlineWidth > 0 {
+            resolvedAppearance.outlineColor.nsColor.setStroke()
+            tagPath.lineWidth = outlineWidth
+            tagPath.stroke()
         }
 
         let rect = NSRect(
-            x: horizontalPadding,
-            y: floor((bounds.height - size.height) / 2),
+            x: shadowBlur + horizontalPadding + outlineWidth,
+            y: floor(tagRect.midY - size.height / 2),
             width: size.width,
             height: size.height
         )
@@ -285,12 +519,19 @@ final class CompactStatusItemView: NSView {
         onClick?()
     }
 
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
+    }
+
     private func drawFailurePattern(in tagRect: NSRect, clippedBy tagPath: NSBezierPath) {
         NSGraphicsContext.saveGraphicsState()
         tagPath.addClip()
-        NSColor.white.setFill()
+        resolvedAppearance.unavailableBaseColor.nsColor.setFill()
         tagPath.fill()
-        NSColor(calibratedRed: 0.85, green: 0.14, blue: 0.18, alpha: 0.68).setStroke()
+        resolvedAppearance.unavailableStripeColor.nsColor
+            .withAlphaComponent(0.78)
+            .setStroke()
         for x in stride(from: tagRect.minX - tagRect.height, through: tagRect.maxX, by: 7) {
             let stripe = NSBezierPath()
             stripe.lineWidth = 2
@@ -302,9 +543,10 @@ final class CompactStatusItemView: NSView {
     }
 
     private var attributedTitle: NSAttributedString {
+        let font = resolvedStatusFont
         let primaryAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: color,
+            .foregroundColor: resolvedAppearance.primaryTextColor.nsColor,
             .kern: -0.2
         ]
         let renderedTitle = NSMutableAttributedString(
@@ -319,7 +561,7 @@ final class CompactStatusItemView: NSView {
                     string: weeklyTitle,
                     attributes: [
                         .font: font,
-                        .foregroundColor: weeklyTextColor,
+                        .foregroundColor: resolvedAppearance.weeklyTextColor.nsColor,
                         .kern: -0.2
                     ]
                 )
@@ -328,261 +570,182 @@ final class CompactStatusItemView: NSView {
 
         return renderedTitle
     }
+
+    private var resolvedStatusFont: NSFont {
+        let size = CGFloat(resolvedAppearance.fontSize)
+        let weight: NSFont.Weight = switch resolvedAppearance.fontWeight {
+        case .semibold:
+            .semibold
+        case .bold:
+            .bold
+        case .heavy:
+            .heavy
+        case .black:
+            .black
+        }
+
+        switch resolvedAppearance.fontFamily {
+        case .monospaced:
+            return NSFont.monospacedSystemFont(
+                ofSize: size,
+                weight: weight
+            )
+        case .rounded:
+            let base = NSFont.systemFont(ofSize: size, weight: weight)
+            guard
+                let descriptor = base.fontDescriptor.withDesign(.rounded),
+                let rounded = NSFont(
+                    descriptor: descriptor,
+                    size: size
+                )
+            else {
+                return base
+            }
+            return rounded
+        case .system:
+            return NSFont.systemFont(ofSize: size, weight: weight)
+        }
+    }
 }
 
 struct StatusPanelView: View {
     @ObservedObject var store: QuotaStore
+    @ObservedObject var appearanceStore: AppearanceStore
+    @ObservedObject var moreOverlayPresenter: MoreOverlayPresenter
+
+    private var appearance: ResolvedPanelAppearance {
+        AppearanceResolver.panel(
+            profile: appearanceStore.currentProfile,
+            primaryRemainingPercent: store.snapshot.remainingPercent,
+            weeklyRemainingPercent: store.snapshot.weeklyRemainingPercent,
+            isUnavailable: store.snapshot.isUnavailable
+        )
+    }
 
     var body: some View {
-        ZStack {
-            ZStack {
-                PanelGlassBackground()
-
-                VStack(alignment: .leading, spacing: 12) {
-                    header
-                    quotaOverviewContainer
+        ThemePanelComposition(
+            appearance: appearance,
+            data: displayData,
+            headerForeground: (
+                store.refreshHealth.showsFailurePattern
+                    ? appearance.unavailableStripeColor
+                    : appearance.backgroundTextColor
+            ).swiftUIColor,
+            showsOuterChrome: false
+        ) {
+            HStack(spacing: 8) {
+                RefreshIconButton(appearance: appearance) {
+                    store.refresh()
                 }
-                .padding(18)
+
+                MoreActionsMenu(
+                    store: store,
+                    appearanceStore: appearanceStore,
+                    appearance: appearance,
+                    moreOverlayPresenter: moreOverlayPresenter
+                )
             }
-            .frame(width: PanelMetrics.cardWidth, height: PanelMetrics.cardHeight)
-            .padding(PanelMetrics.windowPadding)
         }
-        .frame(width: PanelMetrics.width, height: PanelMetrics.height)
+        .frame(
+            width: PanelMetrics.cardWidth,
+            height: PanelMetrics.cardHeight
+        )
     }
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 8) {
-            Text(
-                QuotaStatusFormatter.header(
-                    snapshot: store.snapshot,
-                    health: store.refreshHealth,
-                    confirmationAttempt: store.confirmationAttempt
-                )
+    private var headerText: String {
+        QuotaStatusFormatter.header(
+            snapshot: store.snapshot,
+            health: store.refreshHealth,
+            confirmationAttempt: store.confirmationAttempt
+        )
+    }
+
+    private var displayData: ThemePanelDisplayData {
+        ThemePanelDisplayData(
+            headerText: headerText,
+            percentText: store.snapshot.percentText,
+            primaryQuotaLabel: store.snapshot.primaryQuotaLabel,
+            shortResetText: store.snapshot.shortResetText,
+            primaryResetDetailText: store.snapshot.primaryResetDetailText,
+            displayRemainingPercent: store.snapshot.displayRemainingPercent,
+            showsSecondaryQuota: store.snapshot.showsSecondaryQuota,
+            weeklyPercentText: store.snapshot.weeklyPercentText,
+            weeklyResetDateText: store.snapshot.weeklyResetDateText
+        )
+    }
+}
+
+struct StatusPanelShadowView: View {
+    @ObservedObject var store: QuotaStore
+    @ObservedObject var appearanceStore: AppearanceStore
+
+    private var appearance: ResolvedPanelAppearance {
+        AppearanceResolver.panel(
+            profile: appearanceStore.currentProfile,
+            primaryRemainingPercent: store.snapshot.remainingPercent,
+            weeklyRemainingPercent: store.snapshot.weeklyRemainingPercent,
+            isUnavailable: store.snapshot.isUnavailable
+        )
+    }
+
+    var body: some View {
+        PanelGlassBackground(appearance: appearance)
+            .frame(
+                width: PanelMetrics.cardWidth,
+                height: PanelMetrics.cardHeight
             )
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(
-                    store.refreshHealth.showsFailurePattern ? Color.red : Color.secondary
-                )
-                .lineLimit(1)
-
-            Spacer()
-
-            RefreshIconButton {
-                store.refresh()
-            }
-
-            MoreActionsMenu(store: store)
-        }
+            .padding(PanelMetrics.shadowInset)
+            .frame(
+                width: PanelMetrics.shadowWidth,
+                height: PanelMetrics.shadowHeight
+            )
     }
-
-    @ViewBuilder
-    private var quotaOverviewContainer: some View {
-        if store.snapshot.showsSecondaryQuota {
-            quotaOverview
-        } else {
-            quotaOverview
-                .frame(maxHeight: .infinity, alignment: .center)
-        }
-    }
-
-    private var quotaOverview: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(store.snapshot.percentText)
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                    Text(store.snapshot.primaryQuotaLabel)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(store.snapshot.shortResetText)
-                        .font(.system(size: 23, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                    Text(store.snapshot.primaryResetDetailText)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            QuotaProgressBar(percent: store.snapshot.displayRemainingPercent, tint: store.snapshot.tint)
-
-            if store.snapshot.showsSecondaryQuota {
-                Divider()
-                    .padding(.vertical, 1)
-
-                SecondaryQuotaRow(
-                    title: "周额度",
-                    percentText: store.snapshot.weeklyPercentText,
-                    trailing: store.snapshot.weeklyResetDateText
-                )
-            }
-        }
-        .padding(14)
-        .notificationInsetSurface(cornerRadius: 12)
-    }
-
 }
 
 struct PanelGlassBackground: View {
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+    let appearance: ResolvedPanelAppearance
+    var includesShadow = true
 
-        ZStack {
-            shape
-                .fill(.ultraThinMaterial)
-
-            shape
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.64),
-                            Color(red: 0.82, green: 0.94, blue: 1.0).opacity(0.48),
-                            Color.white.opacity(0.30)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-
-            Ellipse()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            Color.white.opacity(0.84),
-                            Color(red: 0.90, green: 0.98, blue: 1.0).opacity(0.32),
-                            Color.clear
-                        ],
-                        center: .center,
-                        startRadius: 4,
-                        endRadius: 82
-                    )
-                )
-                .frame(width: 130, height: 150)
-                .offset(x: 130, y: -56)
-                .blur(radius: 4)
-
-            shape
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.68),
-                            Color.white.opacity(0.38),
-                            Color(red: 0.42, green: 0.70, blue: 0.88).opacity(0.20)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-
-            shape
-                .stroke(Color.white.opacity(0.22), lineWidth: 0.7)
-                .padding(1.2)
+    private var shell: ThemeChromeRecipe {
+        var shell = appearance.visuals.panelShell
+        if !includesShadow {
+            shell.shadow = .none
         }
-        .clipShape(shape)
-        .shadow(color: Color.black.opacity(0.12), radius: 18, x: 0, y: 10)
+        return shell
+    }
+
+    var body: some View {
+        ThemeSurfaceBackground(
+            appearance: appearance,
+            chrome: shell,
+            fill: appearance.backgroundColor,
+            fillStyle: appearance.visuals.panelFill,
+            gradientEnd: appearance.panelGradientEndColor
+        )
     }
 }
 
 private extension View {
-    func notificationInsetSurface(cornerRadius: CGFloat) -> some View {
-        background {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(Color.white.opacity(0.28))
+    func themedIconSurface(
+        _ appearance: ResolvedPanelAppearance,
+        isPressed: Bool,
+        isHovered: Bool
+    ) -> some View {
+        var chrome = appearance.visuals.actionButton
+        if isPressed {
+            chrome.shadow = .none
         }
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.28), lineWidth: 0.8)
+        return themeSurface(
+            appearance: appearance,
+            chrome: chrome,
+            fill: appearance.actionAccentColor
         )
+            .offset(y: isPressed ? 1 : (isHovered ? -0.5 : 0))
     }
-
-    func glassSurface(cornerRadius: CGFloat) -> some View {
-        background {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.12),
-                            Color.white.opacity(0.028),
-                            Color.white.opacity(0.006)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        }
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.20),
-                            Color.white.opacity(0.05),
-                            Color.white.opacity(0.012)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
-    }
-
-    func glassIconSurface(cornerRadius: CGFloat = 4, isPressed: Bool = false, isHovered: Bool = false) -> some View {
-        background {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(isPressed ? 0.12 : (isHovered ? 0.54 : 0.40)),
-                            Color.white.opacity(isPressed ? 0.04 : (isHovered ? 0.24 : 0.15)),
-                            Color.black.opacity(isPressed ? 0.14 : 0.05)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        }
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(isPressed ? 0.22 : (isHovered ? 0.68 : 0.52)),
-                            Color.white.opacity(isPressed ? 0.10 : (isHovered ? 0.42 : 0.30)),
-                            Color.black.opacity(isPressed ? 0.20 : 0.08)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius - 1, style: .continuous)
-                .stroke(Color.white.opacity(isPressed ? 0.04 : 0.10), lineWidth: 0.6)
-                .padding(1.25)
-        )
-        .shadow(color: Color.white.opacity(isPressed ? 0.04 : (isHovered ? 0.16 : 0.08)), radius: 0, x: 0, y: -0.6)
-        .shadow(color: Color.black.opacity(isPressed ? 0.06 : (isHovered ? 0.13 : 0.10)), radius: isPressed ? 1 : (isHovered ? 3 : 2), x: 0, y: isPressed ? 0.4 : (isHovered ? 1.6 : 1.2))
-        .shadow(color: Color.black.opacity(isPressed ? 0.03 : (isHovered ? 0.07 : 0.05)), radius: isPressed ? 1 : (isHovered ? 5 : 3), x: 0, y: isPressed ? 0.8 : (isHovered ? 3 : 2))
-        .offset(y: isPressed ? 0.75 : (isHovered ? -0.6 : 0))
-        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-    }
-
 }
 
 struct RefreshIconButton: View {
+    let appearance: ResolvedPanelAppearance
     let action: () -> Void
     @State private var isPressed = false
     @State private var isHovered = false
@@ -591,7 +754,12 @@ struct RefreshIconButton: View {
         Button {
             action()
         } label: {
-            PanelIconFrame(systemImage: "arrow.clockwise", isPressed: isPressed, isHovered: isHovered)
+            PanelIconFrame(
+                systemImage: "arrow.clockwise",
+                appearance: appearance,
+                isPressed: isPressed,
+                isHovered: isHovered
+            )
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -620,32 +788,68 @@ struct RefreshIconButton: View {
 
 struct PanelIconFrame: View {
     let systemImage: String
+    let appearance: ResolvedPanelAppearance
     var isPressed = false
     var isHovered = false
 
     var body: some View {
         Image(systemName: systemImage)
-            .font(.system(size: 12, weight: .semibold))
-            .frame(width: 24, height: 24)
+            .font(
+                .system(
+                    size: CGFloat(
+                        ThemePanelLayout.actionIconSize
+                            * appearance.geometry.fontScale
+                    ),
+                    weight: .black
+                )
+            )
+            .frame(
+                width: ThemePanelLayout.actionSize,
+                height: ThemePanelLayout.actionSize
+            )
             .contentShape(Rectangle())
-            .foregroundStyle(.secondary)
-            .glassIconSurface(isPressed: isPressed, isHovered: isHovered)
+            .foregroundStyle(
+                appearance.outlineColor.readable(
+                    on: appearance.actionAccentColor
+                        .composited(over: appearance.backgroundColor)
+                        .composited(over: .white)
+                ).swiftUIColor
+            )
+            .themedIconSurface(
+                appearance,
+                isPressed: isPressed,
+                isHovered: isHovered
+            )
     }
 }
 
 struct MoreActionsMenu: View {
     @ObservedObject var store: QuotaStore
-    @State private var isShowingActions = false
+    @ObservedObject var appearanceStore: AppearanceStore
+    let appearance: ResolvedPanelAppearance
+    @ObservedObject var moreOverlayPresenter: MoreOverlayPresenter
     @State private var isPressed = false
     @State private var isHovered = false
 
     var body: some View {
         Button {
-            isShowingActions.toggle()
+            moreOverlayPresenter.toggle()
         } label: {
-            PanelIconFrame(systemImage: "ellipsis", isPressed: isPressed || isShowingActions, isHovered: isHovered || isShowingActions)
+            PanelIconFrame(
+                systemImage: "ellipsis",
+                appearance: appearance,
+                isPressed:
+                    isPressed || moreOverlayPresenter.isPresented,
+                isHovered:
+                    isHovered || moreOverlayPresenter.isPresented
+            )
         }
         .buttonStyle(.plain)
+        .background {
+            MoreOverlayAnchorReader { anchor in
+                moreOverlayPresenter.setAnchorView(anchor)
+            }
+        }
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.08)) {
                 isHovered = hovering
@@ -666,16 +870,16 @@ struct MoreActionsMenu: View {
                     }
                 }
         )
-        .popover(isPresented: $isShowingActions, arrowEdge: .top) {
-            ActionsPopover(store: store)
-                .frame(width: 224)
-        }
         .help("更多")
+        .accessibilityLabel("更多")
     }
 }
 
 struct ActionsPopover: View {
     @ObservedObject var store: QuotaStore
+    @ObservedObject var appearanceStore: AppearanceStore
+    let appearance: ResolvedPanelAppearance
+    let onShowAppearance: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -685,7 +889,8 @@ struct ActionsPopover: View {
                 ActionMenuRow(
                     systemImage: store.voiceBroadcastEnabled ? "speaker.slash.fill" : "speaker.wave.2.fill",
                     title: store.voiceBroadcastEnabled ? "关闭播报" : "开启播报",
-                    trailing: store.voiceBroadcastEnabled ? nil : "\(store.voiceBroadcastIntervalMinutes) 分钟"
+                    trailing: store.voiceBroadcastEnabled ? nil : "\(store.voiceBroadcastIntervalMinutes) 分钟",
+                    appearance: appearance
                 )
             }
             .buttonStyle(.plain)
@@ -695,33 +900,76 @@ struct ActionsPopover: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("播报间隔")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .font(
+                            .system(
+                                size: CGFloat(
+                                    11 * appearance.geometry.fontScale
+                                ),
+                                weight: .semibold
+                            )
+                        )
+                        .foregroundStyle(
+                            appearance.backgroundTextColor.swiftUIColor
+                                .opacity(0.72)
+                        )
                         .padding(.horizontal, 6)
 
-                    BroadcastIntervalButton(minutes: 1, store: store)
-                    BroadcastIntervalButton(minutes: 5, store: store)
-                    BroadcastIntervalButton(minutes: 10, store: store)
+                    BroadcastIntervalButton(
+                        minutes: 1,
+                        store: store,
+                        appearance: appearance
+                    )
+                    BroadcastIntervalButton(
+                        minutes: 5,
+                        store: store,
+                        appearance: appearance
+                    )
+                    BroadcastIntervalButton(
+                        minutes: 10,
+                        store: store,
+                        appearance: appearance
+                    )
                 }
             }
 
             Divider()
 
             Button {
+                withAnimation(.easeOut(duration: 0.12)) {
+                    onShowAppearance()
+                }
+            } label: {
+                ActionMenuRow(
+                    systemImage: "paintpalette.fill",
+                    title: "外观",
+                    trailing: appearanceStore.selectedTheme.displayName,
+                    appearance: appearance
+                )
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+
+            Button {
                 NSApplication.shared.terminate(nil)
             } label: {
-                ActionMenuRow(systemImage: "power", title: "退出应用", trailing: nil)
+                ActionMenuRow(
+                    systemImage: "power",
+                    title: "退出应用",
+                    trailing: nil,
+                    appearance: appearance
+                )
             }
             .buttonStyle(.plain)
         }
         .padding(10)
-        .background(PanelGlassBackground())
     }
 }
 
 struct BroadcastIntervalButton: View {
     let minutes: Int
     @ObservedObject var store: QuotaStore
+    let appearance: ResolvedPanelAppearance
 
     var body: some View {
         Button {
@@ -730,7 +978,8 @@ struct BroadcastIntervalButton: View {
             ActionMenuRow(
                 systemImage: store.voiceBroadcastIntervalMinutes == minutes ? "checkmark.circle.fill" : "circle",
                 title: "\(minutes) 分钟",
-                trailing: nil
+                trailing: nil,
+                appearance: appearance
             )
         }
         .buttonStyle(.plain)
@@ -741,81 +990,54 @@ struct ActionMenuRow: View {
     let systemImage: String
     let title: String
     let trailing: String?
+    let appearance: ResolvedPanelAppearance
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .semibold))
+                .font(
+                    .system(
+                        size: CGFloat(
+                            13 * appearance.geometry.fontScale
+                        ),
+                        weight: .bold
+                    )
+                )
                 .frame(width: 18)
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(
+                    .system(
+                        size: CGFloat(
+                            13 * appearance.geometry.fontScale
+                        ),
+                        weight: .semibold
+                    )
+                )
             Spacer()
             if let trailing {
                 Text(trailing)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(
+                        .system(
+                            size: CGFloat(
+                                11 * appearance.geometry.fontScale
+                            ),
+                            weight: .medium
+                        )
+                    )
+                    .foregroundStyle(
+                        appearance.textColor.swiftUIColor.opacity(0.72)
+                    )
             }
         }
-        .foregroundStyle(.primary)
+        .foregroundStyle(appearance.textColor.swiftUIColor)
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
         .contentShape(Rectangle())
-        .glassSurface(cornerRadius: 6)
-    }
-}
-
-struct QuotaProgressBar: View {
-    let percent: Int
-    let tint: Color
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(.thinMaterial)
-                    .overlay(Color(nsColor: .separatorColor).opacity(0.16))
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                tint.opacity(0.78),
-                                tint
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: max(8, proxy.size.width * min(max(Double(percent) / 100, 0), 1)))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(Color.white.opacity(0.24), lineWidth: 0.6)
-                    )
-            }
-        }
-        .frame(height: 8)
-    }
-}
-
-struct SecondaryQuotaRow: View {
-    let title: String
-    let percentText: String
-    let trailing: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(percentText)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-            Text(trailing)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .frame(width: 86, alignment: .trailing)
-        }
+        .themeSurface(
+            appearance: appearance,
+            chrome: appearance.visuals.menuRow,
+            fill: appearance.surfaceColor
+        )
     }
 }
 
