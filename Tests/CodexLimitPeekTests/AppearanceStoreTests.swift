@@ -317,25 +317,31 @@ struct AppearanceStoreTests {
     func versionTwoProfileMigratesWithEquivalentStatusAppearance() throws {
         let defaults = isolatedDefaults()
         var legacy = LegacyAppearanceProfileV2.default(for: .bold)
-        legacy.geometry.fontScale = 1.2
-        legacy.geometry.outlineWidth = 3
-        legacy.geometry.cornerRadius = 9
-        legacy.geometry.shadowDepth = 7
-        legacy.geometry.shadowBlur = 4
+        legacy.geometry.fontScale = 1.25
+        legacy.geometry.outlineWidth = 4
+        legacy.geometry.cornerRadius = 28
+        legacy.geometry.shadowDepth = 10
+        legacy.geometry.shadowBlur = 20
         defaults.set(
             try JSONEncoder().encode(legacy),
             forKey: AppearancePersistenceKey.legacyProfileV2(.bold)
         )
 
         let migrated = AppearanceStore(defaults: defaults).profile(for: .bold)
-        let expected = StatusItemGeometry.migratedFromVersionTwo(
-            theme: .bold,
-            panelGeometry: legacy.geometry
-        )
 
         #expect(migrated.schemaVersion == 3)
         #expect(migrated.geometry == legacy.geometry.clamped())
-        #expect(migrated.statusItemGeometry == expected)
+        #expect(
+            migrated.statusItemGeometry == StatusItemGeometry(
+                fontSize: 12.5,
+                outlineWidth: 3,
+                cornerRadius: 23,
+                shadowDepth: 4,
+                shadowBlur: 20,
+                horizontalPadding: 7,
+                tagHeight: 18
+            )
+        )
     }
 
     @Test @MainActor
@@ -359,6 +365,100 @@ struct AppearanceStoreTests {
                 == AppearanceColor(hex: 0xABCDEF)
         )
         #expect(restored.profile(for: .frost).schemaVersion == 3)
+    }
+
+    @Test @MainActor
+    func unsupportedVersionThreeFallsBackToVersionTwoAndCorrectsIdentity()
+        throws
+    {
+        let defaults = isolatedDefaults()
+        var unsupported = AppearanceProfile.default(for: .bold)
+        unsupported.schemaVersion = 999
+        unsupported.palette.background = AppearanceColor(hex: 0x111111)
+        var legacy = LegacyAppearanceProfileV2.default(for: .loud)
+        legacy.palette.background = AppearanceColor(hex: 0xABCDEF)
+        legacy.capabilities = AppearanceProfile.default(
+            for: .frost
+        ).capabilities
+        defaults.set(
+            try JSONEncoder().encode(unsupported),
+            forKey: AppearancePersistenceKey.profile(.bold)
+        )
+        defaults.set(
+            try JSONEncoder().encode(legacy),
+            forKey: AppearancePersistenceKey.legacyProfileV2(.bold)
+        )
+
+        let migrated = AppearanceStore(defaults: defaults).profile(for: .bold)
+
+        #expect(migrated.palette.background == AppearanceColor(hex: 0xABCDEF))
+        #expect(migrated.themeID == .bold)
+        #expect(
+            migrated.capabilities
+                == AppearanceProfile.default(for: .bold).capabilities
+        )
+    }
+
+    @Test @MainActor
+    func invalidVersionTwoFallsBackToVersionOne() throws {
+        let malformedDefaults = isolatedDefaults()
+        var malformedFallback = LegacyAppearanceProfileV1.default(for: .bold)
+        malformedFallback.palette.background = AppearanceColor(hex: 0x123456)
+        malformedFallback.capabilities = AppearanceProfile.default(
+            for: .frost
+        ).capabilities
+        malformedDefaults.set(
+            Data("broken-v2".utf8),
+            forKey: AppearancePersistenceKey.legacyProfileV2(.loud)
+        )
+        malformedDefaults.set(
+            try JSONEncoder().encode(malformedFallback),
+            forKey: AppearancePersistenceKey.legacyProfileV1(.loud)
+        )
+
+        let malformedResult = AppearanceStore(
+            defaults: malformedDefaults
+        ).profile(for: .loud)
+
+        #expect(
+            malformedResult.palette.background
+                == AppearanceColor(hex: 0x123456)
+        )
+        #expect(malformedResult.themeID == .loud)
+        #expect(
+            malformedResult.capabilities
+                == AppearanceProfile.default(for: .loud).capabilities
+        )
+
+        let unsupportedDefaults = isolatedDefaults()
+        var unsupported = LegacyAppearanceProfileV2.default(for: .frost)
+        unsupported.schemaVersion = 999
+        var unsupportedFallback = LegacyAppearanceProfileV1.default(
+            for: .loud
+        )
+        unsupportedFallback.palette.background = AppearanceColor(hex: 0x654321)
+        unsupportedDefaults.set(
+            try JSONEncoder().encode(unsupported),
+            forKey: AppearancePersistenceKey.legacyProfileV2(.frost)
+        )
+        unsupportedDefaults.set(
+            try JSONEncoder().encode(unsupportedFallback),
+            forKey: AppearancePersistenceKey.legacyProfileV1(.frost)
+        )
+
+        let unsupportedResult = AppearanceStore(
+            defaults: unsupportedDefaults
+        ).profile(for: .frost)
+
+        #expect(
+            unsupportedResult.palette.background
+                == AppearanceColor(hex: 0x654321)
+        )
+        #expect(unsupportedResult.themeID == .frost)
+        #expect(
+            unsupportedResult.capabilities
+                == AppearanceProfile.default(for: .frost).capabilities
+        )
     }
 
     @Test @MainActor

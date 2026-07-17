@@ -273,6 +273,26 @@ struct StatusItemGeometry: Codable, Equatable, Sendable {
     var horizontalPadding: Double
     var tagHeight: Double
 
+    enum EditorRange {
+        static let fontSize: ClosedRange<Double> = 8...14
+        static let outlineWidth: ClosedRange<Double> = 0...4
+        static let cornerRadius: ClosedRange<Double> = 0...12
+        static let shadowDepth: ClosedRange<Double> = 0...6
+        static let shadowBlur: ClosedRange<Double> = 0...8
+        static let horizontalPadding: ClosedRange<Double> = 2...14
+        static let tagHeight: ClosedRange<Double> = 14...22
+    }
+
+    enum CompatibilityRange {
+        static let fontSize = EditorRange.fontSize
+        static let outlineWidth = EditorRange.outlineWidth
+        static let cornerRadius: ClosedRange<Double> = 0...28
+        static let shadowDepth = EditorRange.shadowDepth
+        static let shadowBlur: ClosedRange<Double> = 0...20
+        static let horizontalPadding = EditorRange.horizontalPadding
+        static let tagHeight = EditorRange.tagHeight
+    }
+
     static func `default`(
         for theme: AppearanceThemeID
     ) -> StatusItemGeometry {
@@ -325,37 +345,37 @@ struct StatusItemGeometry: Codable, Equatable, Sendable {
         return StatusItemGeometry(
             fontSize: value(
                 fontSize,
-                in: 8...14,
+                in: CompatibilityRange.fontSize,
                 fallback: defaults.fontSize
             ),
             outlineWidth: value(
                 outlineWidth,
-                in: 0...4,
+                in: CompatibilityRange.outlineWidth,
                 fallback: defaults.outlineWidth
             ),
             cornerRadius: value(
                 cornerRadius,
-                in: 0...12,
+                in: CompatibilityRange.cornerRadius,
                 fallback: defaults.cornerRadius
             ),
             shadowDepth: value(
                 shadowDepth,
-                in: 0...6,
+                in: CompatibilityRange.shadowDepth,
                 fallback: defaults.shadowDepth
             ),
             shadowBlur: value(
                 shadowBlur,
-                in: 0...8,
+                in: CompatibilityRange.shadowBlur,
                 fallback: defaults.shadowBlur
             ),
             horizontalPadding: value(
                 horizontalPadding,
-                in: 2...14,
+                in: CompatibilityRange.horizontalPadding,
                 fallback: defaults.horizontalPadding
             ),
             tagHeight: value(
                 tagHeight,
-                in: 14...22,
+                in: CompatibilityRange.tagHeight,
                 fallback: defaults.tagHeight
             )
         )

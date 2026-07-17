@@ -144,14 +144,45 @@ struct AppearanceThemeTests {
     }
 
     @Test
-    func validationClampsEveryStatusItemGeometryField() {
+    func editorRangesRemainNarrowerThanLegacyCompatibilityBounds() {
+        #expect(
+            StatusItemGeometry.EditorRange.fontSize == 8...14
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.outlineWidth == 0...4
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.cornerRadius == 0...12
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.shadowDepth == 0...6
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.shadowBlur == 0...8
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.horizontalPadding == 2...14
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.tagHeight == 14...22
+        )
+        #expect(
+            StatusItemGeometry.CompatibilityRange.cornerRadius == 0...28
+        )
+        #expect(
+            StatusItemGeometry.CompatibilityRange.shadowBlur == 0...20
+        )
+    }
+
+    @Test
+    func validationClampsStatusGeometryToCompatibilityBounds() {
         var profile = AppearanceProfile.default(for: .loud)
         profile.statusItemGeometry = StatusItemGeometry(
             fontSize: 50,
             outlineWidth: -1,
             cornerRadius: 80,
             shadowDepth: 50,
-            shadowBlur: -3,
+            shadowBlur: 80,
             horizontalPadding: 100,
             tagHeight: 1
         )
@@ -160,9 +191,9 @@ struct AppearanceThemeTests {
 
         #expect(result.fontSize == 14)
         #expect(result.outlineWidth == 0)
-        #expect(result.cornerRadius == 12)
+        #expect(result.cornerRadius == 28)
         #expect(result.shadowDepth == 6)
-        #expect(result.shadowBlur == 0)
+        #expect(result.shadowBlur == 20)
         #expect(result.horizontalPadding == 14)
         #expect(result.tagHeight == 14)
     }
