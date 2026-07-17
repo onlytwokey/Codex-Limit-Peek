@@ -6,6 +6,7 @@ struct MoreOverlayInteractionView: View {
     @ObservedObject var appearanceStore: AppearanceStore
     let page: MoreOverlayPage
     let onNavigate: (MoreOverlayPage) -> Void
+    let onOpenCustomColor: (AppearanceColorToken) -> Void
 
     private var appearance: ResolvedPanelAppearance {
         AppearanceResolver.panel(
@@ -58,12 +59,14 @@ struct MoreOverlayInteractionView: View {
             AppearanceEditorView(
                 store: appearanceStore,
                 onBack: { onNavigate(.actions) },
-                onStateColors: { onNavigate(.stateColors) }
+                onStateColors: { onNavigate(.stateColors) },
+                onOpenCustomColor: onOpenCustomColor
             )
         case .stateColors:
             StateColorsEditorView(
                 store: appearanceStore,
-                onBack: { onNavigate(.appearance) }
+                onBack: { onNavigate(.appearance) },
+                onOpenCustomColor: onOpenCustomColor
             )
         }
     }

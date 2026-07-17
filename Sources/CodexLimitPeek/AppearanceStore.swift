@@ -370,7 +370,28 @@ final class AppearanceStore: ObservableObject {
         _ color: AppearanceColor,
         for token: AppearanceColorToken
     ) {
-        updateCurrent { $0.palette[token] = color }
+        setColor(
+            color,
+            for: token,
+            in: selectedTheme
+        )
+    }
+
+    func setColor(
+        _ color: AppearanceColor,
+        for token: AppearanceColorToken,
+        in theme: AppearanceThemeID
+    ) {
+        var profile = profile(for: theme)
+        profile.palette[token] = color
+        let validated = profile.validated(for: theme)
+        guard validated != self.profile(for: theme) else {
+            return
+        }
+        profiles[theme] = validated
+        markChanged(
+            affectsThemeRendering: theme == selectedTheme
+        )
     }
 
     func resetCurrentTheme() {

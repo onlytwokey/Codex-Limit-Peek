@@ -1,3 +1,5 @@
+import AppKit
+import SwiftUI
 import Testing
 @testable import CodexLimitPeek
 
@@ -42,5 +44,27 @@ struct AppearanceEditorTypographyTests {
             AppearanceEditorMetrics.customColorControlWidth >= 25
         )
         #expect(AppearanceEditorMetrics.colorControlHeight >= 21)
+    }
+
+    @Test @MainActor
+    func customColorButtonDoesNotHostANativeColorWell() {
+        let host = NSHostingView(
+            rootView: AppearanceCustomColorButton(
+                title: "背景",
+                color: AppearanceColor(hex: 0xFFE36E),
+                action: {}
+            )
+        )
+        host.frame = NSRect(x: 0, y: 0, width: 40, height: 32)
+        host.layoutSubtreeIfNeeded()
+
+        func containsColorWell(_ view: NSView) -> Bool {
+            if view is NSColorWell {
+                return true
+            }
+            return view.subviews.contains(where: containsColorWell)
+        }
+
+        #expect(!containsColorWell(host))
     }
 }

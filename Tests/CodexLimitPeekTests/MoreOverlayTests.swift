@@ -3,6 +3,46 @@ import SwiftUI
 import Testing
 @testable import CodexLimitPeek
 
+@MainActor
+private final class RecordingColorPanelCoordinator:
+    AppearanceColorPanelCoordinating
+{
+    private(set) var activeContext:
+        AppearanceColorPanelEditContext?
+    private(set) var closeCount = 0
+    private(set) var beginCount = 0
+    private var onChange: ((
+        AppearanceThemeID,
+        AppearanceColorToken,
+        AppearanceColor
+    ) -> Void)?
+
+    func beginEditing(
+        theme: AppearanceThemeID,
+        token: AppearanceColorToken,
+        color: AppearanceColor,
+        above overlayLevel: NSWindow.Level,
+        onChange: @escaping (
+            AppearanceThemeID,
+            AppearanceColorToken,
+            AppearanceColor
+        ) -> Void
+    ) {
+        beginCount += 1
+        activeContext = AppearanceColorPanelEditContext(
+            theme: theme,
+            token: token
+        )
+        self.onChange = onChange
+    }
+
+    func close() {
+        closeCount += 1
+        activeContext = nil
+        onChange = nil
+    }
+}
+
 @Suite(.serialized)
 struct MoreOverlayTests {
     @Test
@@ -202,26 +242,93 @@ struct MoreOverlayTests {
     }
 
     @Test @MainActor
-    func closingDismissesTheSharedColorPanel() {
+    func colorPanelContextClosesOnNavigationThemeChangeAndOverlayClose() {
         let suite = "MoreOverlayTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
-        defer {
-            NSColorPanel.shared.orderOut(nil)
-            defaults.removePersistentDomain(forName: suite)
-        }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let appearance = AppearanceStore(defaults: defaults)
+        let coordinator = RecordingColorPanelCoordinator()
         let presenter = MoreOverlayPresenter(
             quotaStore: QuotaStore(defaults: defaults),
-            appearanceStore: AppearanceStore(defaults: defaults)
+            appearanceStore: appearance,
+            colorPanelCoordinator: coordinator
         )
-        let colorPanel = NSColorPanel.shared
+        let parent = NSPanel(
+            contentRect: NSRect(
+                x: 400,
+                y: 620,
+                width: 380,
+                height: 260
+            ),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let container = NSView(
+            frame: NSRect(
+                x: 0,
+                y: 0,
+                width: 380,
+                height: 260
+            )
+        )
+        let anchor = MoreOverlayAnchorView(
+            frame: NSRect(
+                x: 330,
+                y: 220,
+                width: 25,
+                height: 25
+            )
+        )
+        container.addSubview(anchor)
+        parent.contentView = container
+        presenter.attach(to: parent)
+        presenter.setAnchorView(anchor)
+        presenter.present()
+        presenter.navigate(to: .appearance)
 
-        colorPanel.orderFront(nil)
-        #expect(colorPanel.isVisible)
+        presenter.openColorPanel(for: .background)
+        #expect(
+            coordinator.activeContext
+                == AppearanceColorPanelEditContext(
+                    theme: .loud,
+                    token: .background
+                )
+        )
+        presenter.navigate(to: .stateColors)
+        #expect(coordinator.activeContext == nil)
 
+        presenter.openColorPanel(for: .surface)
+        #expect(coordinator.activeContext?.token == .surface)
+        appearance.select(.bold)
+        #expect(coordinator.activeContext == nil)
+
+        presenter.openColorPanel(for: .normal)
+        #expect(coordinator.activeContext?.theme == .bold)
+        presenter.close()
+        #expect(coordinator.activeContext == nil)
+    }
+
+    @Test @MainActor
+    func openingColorPanelWhileOverlayIsNotPresentedIsANoOp() {
+        let suite = "MoreOverlayTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let coordinator = RecordingColorPanelCoordinator()
+        let presenter = MoreOverlayPresenter(
+            quotaStore: QuotaStore(defaults: defaults),
+            appearanceStore: AppearanceStore(defaults: defaults),
+            colorPanelCoordinator: coordinator
+        )
+
+        presenter.openColorPanel(for: .background)
+        presenter.close()
         presenter.close()
 
-        #expect(!colorPanel.isVisible)
+        #expect(coordinator.beginCount == 0)
+        #expect(coordinator.activeContext == nil)
     }
 
     @Test @MainActor

@@ -43,6 +43,31 @@ struct AppearanceStoreTests {
     }
 
     @Test @MainActor
+    func capturedThemeColorWriteDoesNotFollowCurrentSelection() {
+        let defaults = isolatedDefaults()
+        let store = AppearanceStore(defaults: defaults)
+        let expected = AppearanceColor(hex: 0x4A6FA5, alpha: 0.42)
+
+        store.select(.loud)
+        let initialRevision = store.revision
+        store.setColor(expected, for: .surface, in: .bold)
+
+        #expect(store.selectedTheme == .loud)
+        #expect(store.revision == initialRevision)
+        #expect(store.profile(for: .bold).palette.surface == expected)
+        #expect(
+            store.profile(for: .loud).palette.surface
+                != expected
+        )
+
+        store.flushPendingSave()
+        #expect(
+            AppearanceStore(defaults: defaults)
+                .profile(for: .bold).palette.surface == expected
+        )
+    }
+
+    @Test @MainActor
     func changesAutoPersistAfterDebounceWithoutManualFlush() async throws {
         let defaults = isolatedDefaults()
         let store = AppearanceStore(

@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import SwiftUI
 
@@ -41,17 +40,21 @@ struct AppearanceEditorView: View {
     @ObservedObject var store: AppearanceStore
     let onBack: (() -> Void)?
     let onStateColors: () -> Void
+    let onOpenCustomColor: (AppearanceColorToken) -> Void
 
     @State private var showsResetConfirmation = false
 
     init(
         store: AppearanceStore,
         onBack: (() -> Void)? = nil,
-        onStateColors: @escaping () -> Void
+        onStateColors: @escaping () -> Void,
+        onOpenCustomColor:
+            @escaping (AppearanceColorToken) -> Void
     ) {
         self.store = store
         self.onBack = onBack
         self.onStateColors = onStateColors
+        self.onOpenCustomColor = onOpenCustomColor
     }
 
     private var resolvedAppearance: ResolvedPanelAppearance {
@@ -460,26 +463,13 @@ struct AppearanceEditorView: View {
     ) -> some View {
         AppearanceColorRow(
             title: title,
-            selection: colorBinding(for: token),
             selectedColor: store.color(for: token),
-            swatches: AppearanceEditorPalette.swatches(for: token)
-        ) { color in
-            store.setColor(color, for: token)
-        }
-    }
-
-    private func colorBinding(
-        for token: AppearanceColorToken
-    ) -> Binding<Color> {
-        Binding(
-            get: {
-                store.color(for: token).swiftUIColor
+            swatches: AppearanceEditorPalette.swatches(for: token),
+            onSelectSwatch: { color in
+                store.setColor(color, for: token)
             },
-            set: { color in
-                store.setColor(
-                    AppearanceColor(nsColor: NSColor(color)),
-                    for: token
-                )
+            onOpenCustomColor: {
+                onOpenCustomColor(token)
             }
         )
     }
@@ -510,6 +500,7 @@ struct AppearanceEditorView: View {
 struct StateColorsEditorView: View {
     @ObservedObject var store: AppearanceStore
     let onBack: () -> Void
+    let onOpenCustomColor: (AppearanceColorToken) -> Void
 
     private var resolvedAppearance: ResolvedPanelAppearance {
         AppearanceResolver.panel(
@@ -672,24 +663,13 @@ struct StateColorsEditorView: View {
     ) -> some View {
         AppearanceColorRow(
             title: title,
-            selection: colorBinding(for: token),
             selectedColor: store.color(for: token),
-            swatches: AppearanceEditorPalette.swatches(for: token)
-        ) { color in
-            store.setColor(color, for: token)
-        }
-    }
-
-    private func colorBinding(
-        for token: AppearanceColorToken
-    ) -> Binding<Color> {
-        Binding(
-            get: { store.color(for: token).swiftUIColor },
-            set: { color in
-                store.setColor(
-                    AppearanceColor(nsColor: NSColor(color)),
-                    for: token
-                )
+            swatches: AppearanceEditorPalette.swatches(for: token),
+            onSelectSwatch: { color in
+                store.setColor(color, for: token)
+            },
+            onOpenCustomColor: {
+                onOpenCustomColor(token)
             }
         )
     }
@@ -1083,19 +1063,10 @@ private struct BrutalSlider: View {
 
 private struct AppearanceColorRow: View {
     let title: String
-    @Binding var selection: Color
     let selectedColor: AppearanceColor
     let swatches: [AppearanceColor]
     let onSelectSwatch: (AppearanceColor) -> Void
-
-    private var customPickerIconColor: Color {
-        let background = selectedColor
-            .clamped()
-            .composited(over: .white)
-        return AppearanceColor.black
-            .readable(on: background, minimumRatio: 3)
-            .swiftUIColor
-    }
+    let onOpenCustomColor: () -> Void
 
     var body: some View {
         HStack(spacing: 7) {
@@ -1154,41 +1125,80 @@ private struct AppearanceColorRow: View {
                 )
             }
 
-            ColorPicker(
-                "",
-                selection: $selection,
-                supportsOpacity: true
+            AppearanceCustomColorButton(
+                title: title,
+                color: selectedColor,
+                action: onOpenCustomColor
             )
-            .labelsHidden()
-            .frame(
-                width: AppearanceEditorMetrics.customColorControlWidth,
-                height: AppearanceEditorMetrics.colorControlHeight
-            )
-            .background(selectedColor.clamped().swiftUIColor)
-            .overlay {
-                Rectangle()
-                    .strokeBorder(
-                        BrutalEditorStyle.ink,
-                        lineWidth: 1.5
-                    )
-            }
-            .overlay {
-                Image(systemName: "plus")
-                    .font(.system(size: 8, weight: .black))
-                    .foregroundStyle(customPickerIconColor)
-                    .allowsHitTesting(false)
-            }
-            .shadow(
-                color: BrutalEditorStyle.ink,
-                radius: 0,
-                x: 1,
-                y: 1
-            )
-            .contentShape(Rectangle())
-            .help("自定义取色…")
-            .accessibilityLabel("自定义\(title)颜色")
         }
         .appearanceEditorMinHeight(30)
+    }
+}
+
+struct AppearanceCustomColorButton: View {
+    let title: String
+    let color: AppearanceColor
+    let action: () -> Void
+
+    private var iconColor: Color {
+        let background = color
+            .clamped()
+            .composited(over: .white)
+        return AppearanceColor.black
+            .readable(on: background, minimumRatio: 3)
+            .swiftUIColor
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Rectangle()
+                .fill(color.clamped().swiftUIColor)
+                .frame(
+                    width:
+                        AppearanceEditorMetrics
+                            .customColorControlWidth,
+                    height:
+                        AppearanceEditorMetrics
+                            .colorControlHeight
+                )
+                .overlay {
+                    Rectangle()
+                        .strokeBorder(
+                            BrutalEditorStyle.ink,
+                            lineWidth: 1.5
+                        )
+                }
+                .overlay {
+                    Image(systemName: "plus")
+                        .font(
+                            .system(
+                                size: 8,
+                                weight: .black
+                            )
+                        )
+                        .foregroundStyle(iconColor)
+                        .allowsHitTesting(false)
+                }
+                .shadow(
+                    color: BrutalEditorStyle.ink,
+                    radius: 0,
+                    x: 1,
+                    y: 1
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(
+            width:
+                AppearanceEditorMetrics
+                    .customColorControlWidth,
+            height:
+                AppearanceEditorMetrics
+                    .colorControlHeight
+        )
+        .contentShape(Rectangle())
+        .help("自定义取色…")
+        .accessibilityLabel("自定义\(title)颜色")
     }
 }
 

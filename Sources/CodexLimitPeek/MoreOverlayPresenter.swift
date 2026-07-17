@@ -287,6 +287,8 @@ final class MoreOverlayPresenter: ObservableObject {
 
     private let quotaStore: QuotaStore
     private let appearanceStore: AppearanceStore
+    private let colorPanelCoordinator:
+        any AppearanceColorPanelCoordinating
     private weak var parentWindow: NSPanel?
     private weak var anchorView: MoreOverlayAnchorView?
     private var windowPair: MoreOverlayWindowPair?
@@ -302,14 +304,25 @@ final class MoreOverlayPresenter: ObservableObject {
 
     init(
         quotaStore: QuotaStore,
-        appearanceStore: AppearanceStore
+        appearanceStore: AppearanceStore,
+        colorPanelCoordinator:
+            any AppearanceColorPanelCoordinating
+            = AppearanceColorPanelCoordinator()
     ) {
         self.quotaStore = quotaStore
         self.appearanceStore = appearanceStore
+        self.colorPanelCoordinator = colorPanelCoordinator
 
         appearanceStore.$revision
             .sink { [weak self] _ in
                 self?.scheduleReposition()
+            }
+            .store(in: &cancellables)
+
+        appearanceStore.$selectedTheme
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.colorPanelCoordinator.close()
             }
             .store(in: &cancellables)
 
@@ -366,6 +379,9 @@ final class MoreOverlayPresenter: ObservableObject {
     }
 
     func navigate(to newPage: MoreOverlayPage) {
+        if newPage != page {
+            colorPanelCoordinator.close()
+        }
         page = newPage
         guard isPresented else { return }
         replaceInteractionRoot()
@@ -373,11 +389,11 @@ final class MoreOverlayPresenter: ObservableObject {
     }
 
     func close(resetPage: Bool = true) {
+        colorPanelCoordinator.close()
         repositionTask?.cancel()
         repositionTask = nil
         protectedVisualFrame = nil
         appearanceStore.flushPendingSave()
-        NSColorPanel.shared.orderOut(nil)
         windowPair?.interaction.orderOut(nil)
         windowPair?.hitShield.orderOut(nil)
         windowPair?.decoration.orderOut(nil)
@@ -394,6 +410,30 @@ final class MoreOverlayPresenter: ObservableObject {
         isPresented = false
         if resetPage {
             page = .actions
+        }
+    }
+
+    func openColorPanel(
+        for token: AppearanceColorToken
+    ) {
+        guard
+            isPresented,
+            let interaction = windowPair?.interaction
+        else {
+            return
+        }
+        let theme = appearanceStore.selectedTheme
+        colorPanelCoordinator.beginEditing(
+            theme: theme,
+            token: token,
+            color: appearanceStore.color(for: token),
+            above: interaction.level
+        ) { [weak self] theme, token, color in
+            self?.appearanceStore.setColor(
+                color,
+                for: token,
+                in: theme
+            )
         }
     }
 
@@ -492,6 +532,9 @@ final class MoreOverlayPresenter: ObservableObject {
             page: page,
             onNavigate: { [weak self] page in
                 self?.navigate(to: page)
+            },
+            onOpenCustomColor: { [weak self] token in
+                self?.openColorPanel(for: token)
             }
         )
     }
