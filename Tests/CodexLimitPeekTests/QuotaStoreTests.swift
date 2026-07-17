@@ -188,6 +188,7 @@ struct QuotaStoreTests {
         clock.advance(by: 15)
         sleeper.resumeNext()
         await waitForProviderCalls(provider, count: 2)
+        await waitForRefresh(store)
         #expect(store.refreshHealth == .confirmingFailure)
         #expect(store.confirmationAttempt == 2)
         await waitForSleeps(sleeper, count: 2)
@@ -196,6 +197,7 @@ struct QuotaStoreTests {
         clock.advance(by: 45)
         sleeper.resumeNext()
         await waitForProviderCalls(provider, count: 3)
+        await waitForRefresh(store)
         #expect(store.refreshHealth == .unavailable)
         await waitForSleeps(sleeper, count: 3)
         #expect(sleeper.delays == [15, 45, 120])
@@ -224,6 +226,7 @@ struct QuotaStoreTests {
         clock.advance(by: 15)
         sleeper.resumeNext()
         await waitForProviderCalls(provider, count: 2)
+        await waitForRefresh(store)
 
         #expect(store.refreshHealth == .live)
         #expect(store.confirmationAttempt == 0)
@@ -270,6 +273,7 @@ struct QuotaStoreTests {
         await waitForSleeps(sleeper, count: 1)
         store.refresh(bypassCooldown: true)
         await waitForProviderCalls(provider, count: 2)
+        await waitForRefresh(store)
         #expect(store.refreshHealth == .live)
 
         sleeper.resumeNext()
@@ -342,6 +346,7 @@ struct QuotaStoreTests {
         #expect(store.lastFailureCategory == .timeout)
         store.start(requestNotificationPermission: false)
         await waitForProviderCalls(provider, count: 1)
+        await waitForRefresh(store)
 
         #expect(store.refreshHealth == .live)
         #expect(store.lastFailureCategory == nil)
@@ -591,6 +596,7 @@ struct QuotaStoreTests {
         clock.advance(by: 10)
         sleeper.resumeNext()
         await waitForProviderCalls(provider, count: 2)
+        await waitForRefresh(store)
     }
 
     @Test @MainActor
@@ -684,6 +690,7 @@ struct QuotaStoreTests {
         clock.advance(by: 10)
         sleeper.resumeNext()
         await waitForProviderCalls(provider, count: 2)
+        await waitForRefresh(store)
     }
 
     @Test @MainActor
@@ -731,6 +738,7 @@ struct QuotaStoreTests {
 
         sleeper.resumeNext()
         await waitForProviderCalls(provider, count: 2)
+        await waitForRefresh(store)
     }
 }
 

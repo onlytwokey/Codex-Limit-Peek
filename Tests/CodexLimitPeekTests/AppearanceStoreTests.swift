@@ -55,7 +55,12 @@ struct AppearanceStoreTests {
         store.setColor(expectedColor, for: .normal)
 
         #expect(!store.isSaved)
-        try await Task.sleep(nanoseconds: 50_000_000)
+        for _ in 0..<100 {
+            if store.isSaved {
+                break
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
         #expect(store.isSaved)
 
         let restored = AppearanceStore(defaults: defaults)
