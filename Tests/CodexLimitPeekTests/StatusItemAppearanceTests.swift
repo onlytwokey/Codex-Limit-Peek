@@ -70,6 +70,50 @@ struct StatusItemAppearanceTests {
     }
 
     @Test @MainActor
+    func profileStatusGeometryDrivesRenderedWidth() {
+        let view = CompactStatusItemView()
+        var profile = AppearanceProfile.default(for: .bold)
+
+        let compact = AppearanceResolver.status(
+            profile: profile,
+            primaryRemainingPercent: 81,
+            weeklyRemainingPercent: 49,
+            isUnavailable: false,
+            showsFailurePattern: false
+        )
+        view.update(
+            title: "81% | 1h34m",
+            weeklyTitle: "49%",
+            appearance: compact,
+            showsFailurePattern: false,
+            tooltip: "Compact"
+        )
+        let compactWidth = view.frame.width
+
+        profile.statusItemGeometry.fontSize = 14
+        profile.statusItemGeometry.horizontalPadding = 14
+        profile.statusItemGeometry.shadowBlur = 8
+        let expanded = AppearanceResolver.status(
+            profile: profile,
+            primaryRemainingPercent: 81,
+            weeklyRemainingPercent: 49,
+            isUnavailable: false,
+            showsFailurePattern: false
+        )
+        .fitted(to: Double(NSStatusBar.system.thickness))
+        view.update(
+            title: "81% | 1h34m",
+            weeklyTitle: "49%",
+            appearance: expanded,
+            showsFailurePattern: false,
+            tooltip: "Expanded"
+        )
+
+        #expect(view.frame.width > compactWidth)
+        #expect(view.frame.height == NSStatusBar.system.thickness)
+    }
+
+    @Test @MainActor
     func softShadowBlurReservesBothHorizontalBleedEdges() {
         let view = CompactStatusItemView()
         var appearance = AppearanceResolver.status(

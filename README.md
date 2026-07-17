@@ -55,7 +55,9 @@ Codex Limit Peek 基于上游项目
 - 额度较低时发本地通知
 - 可选语音播报，支持 1 / 5 / 10 分钟间隔
 - 在“更多 → 外观”实时切换 LOUD、BOLD、FROST 三套主题
-- 分别记忆三套主题的颜色、字体、描边、圆角、阴影和透明度
+- 分别记忆三套主题的面板颜色、字体、描边、圆角、阴影和透明度
+- 通过独立“状态栏显示层”页面，为每套主题调节状态栏字体、描边、圆角、阴影、留白和高度
+- 基础色板和高级状态颜色均可通过方形“＋”按钮打开系统取色面板，并支持透明度
 - 单独调节设置页面字体大小，范围为 90%–150%
 - 刷新失败时保留上次值，并显示白底红色斜纹
 - 不读取认证文件，不上传提示词、回复或附件
@@ -77,12 +79,13 @@ Codex Limit Peek 基于上游项目
   每个文件只读取尾部 256 KB。
 - **轻量与隐私：** 面板和语音组件按需创建；不读取认证文件，也不记录原始
   会话内容、SQLite 行或 app-server 响应。
-- **可定制外观：** 提供 LOUD、BOLD、FROST 三套独立记忆的主题，并允许实时
-  调整面板、状态栏和状态颜色。主题参数覆盖颜色、字体、描边、圆角、阴影与透明度。
+- **可定制外观：** 提供 LOUD、BOLD、FROST 三套逐主题独立记忆的配置，并允许
+  实时调整面板、状态栏显示层和状态颜色。面板几何参数与状态栏几何参数彼此独立，
+  切换主题后仍会保留各自的颜色、字体、描边、圆角、阴影、透明度、留白与高度。
 - **主题化浮层：** “更多”和“外观”使用同一套主题渲染的无尖角双层浮窗，
   不再依赖系统默认的直角内容框。
 - **安装与质量：** 使用临时目录完成源码构建并自动清理，执行本地签名，
-  由 130 项自动化测试和 GitHub Actions 持续验证。
+  并由完整的自动化测试套件和 GitHub Actions 持续验证。
 
 更完整的上游提交归属与许可证说明见 [NOTICE.md](NOTICE.md)。
 
@@ -154,6 +157,7 @@ app-server 不可用时，应用会读取以下本地来源作为回退：
 │   └── CodexLimitPeekTests/
 │       ├── AppDelegateLifecycleTests.swift
 │       ├── AppServerQuotaProviderTests.swift
+│       ├── AppearanceColorPanelCoordinatorTests.swift
 │       ├── AppearanceEditorTypographyTests.swift
 │       ├── AppearanceStoreTests.swift
 │       ├── AppearanceThemeTests.swift
@@ -162,10 +166,12 @@ app-server 不可用时，应用会读取以下本地来源作为回退：
 │       ├── QuotaStoreTests.swift
 │       ├── RefreshReliabilityTests.swift
 │       ├── StatusItemAppearanceTests.swift
+│       ├── StatusItemEditorTests.swift
 │       └── ThemeVisualRecipeTests.swift
 └── Sources/
     └── CodexLimitPeek/
         ├── AppServerQuotaProvider.swift
+        ├── AppearanceColorPanelCoordinator.swift
         ├── AppearanceEditorTypography.swift
         ├── AppearanceEditorView.swift
         ├── AppearanceStore.swift
