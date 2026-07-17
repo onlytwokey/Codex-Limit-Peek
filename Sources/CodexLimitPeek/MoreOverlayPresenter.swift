@@ -276,6 +276,7 @@ final class MoreOverlayPresenter: ObservableObject {
         repositionTask?.cancel()
         repositionTask = nil
         appearanceStore.flushPendingSave()
+        NSColorPanel.shared.orderOut(nil)
         windowPair?.interaction.orderOut(nil)
         windowPair?.decoration.orderOut(nil)
         if let interaction = windowPair?.interaction {
@@ -506,9 +507,6 @@ final class MoreOverlayPresenter: ObservableObject {
 
     func handleLocalEvent(_ event: NSEvent) -> NSEvent? {
         if event.type == .keyDown, event.keyCode == 53 {
-            if NSColorPanel.shared.isVisible {
-                NSColorPanel.shared.orderOut(nil)
-            }
             close()
             return nil
         }

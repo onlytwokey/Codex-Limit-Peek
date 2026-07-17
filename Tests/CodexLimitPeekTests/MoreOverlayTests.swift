@@ -134,6 +134,29 @@ struct MoreOverlayTests {
     }
 
     @Test @MainActor
+    func closingDismissesTheSharedColorPanel() {
+        let suite = "MoreOverlayTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer {
+            NSColorPanel.shared.orderOut(nil)
+            defaults.removePersistentDomain(forName: suite)
+        }
+        let presenter = MoreOverlayPresenter(
+            quotaStore: QuotaStore(defaults: defaults),
+            appearanceStore: AppearanceStore(defaults: defaults)
+        )
+        let colorPanel = NSColorPanel.shared
+
+        colorPanel.orderFront(nil)
+        #expect(colorPanel.isVisible)
+
+        presenter.close()
+
+        #expect(!colorPanel.isVisible)
+    }
+
+    @Test @MainActor
     func presentedPairKeepsDirectOrderingAndUpdatesBothFramesTogether()
         throws
     {
