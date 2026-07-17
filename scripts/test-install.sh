@@ -21,6 +21,7 @@ mkdir -p "$TEST_TMP" "$TEST_APPS"
 TMPDIR="$TEST_TMP" \
 CODEX_LIMIT_PEEK_INSTALL_DIR="$TEST_APPS" \
 CODEX_LIMIT_PEEK_SKIP_LAUNCH=1 \
+CODEX_LIMIT_PEEK_SKIP_STOP=1 \
 "$ROOT_DIR/scripts/install.sh"
 
 APP_PATH="$TEST_APPS/Codex Limit Peek.app"
@@ -47,6 +48,7 @@ if PATH="$SANDBOX/bin:$PATH" \
   TMPDIR="$TEST_TMP" \
   CODEX_LIMIT_PEEK_INSTALL_DIR="$TEST_APPS" \
   CODEX_LIMIT_PEEK_SKIP_LAUNCH=1 \
+  CODEX_LIMIT_PEEK_SKIP_STOP=1 \
   "$ROOT_DIR/scripts/install.sh"; then
   echo "expected the stubbed build to fail" >&2
   exit 1

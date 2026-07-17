@@ -35,7 +35,9 @@ ditto "$ROOT_DIR/build/Codex Limit Peek.app" "$STAGED_APP"
 codesign --force --deep --sign - "$STAGED_APP"
 codesign --verify --deep --strict "$STAGED_APP"
 
-pkill -x CodexLimitPeek 2>/dev/null || true
+if [[ "${CODEX_LIMIT_PEEK_SKIP_STOP:-0}" != "1" ]]; then
+  pkill -x CodexLimitPeek 2>/dev/null || true
+fi
 
 BACKUP_APP="$STAGE_ROOT/previous.app"
 if [[ -e "$DEST_APP" ]]; then
