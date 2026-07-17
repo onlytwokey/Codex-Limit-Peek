@@ -19,21 +19,49 @@ protocol AppearanceColorPanelDriving: AnyObject {
 }
 
 @MainActor
+protocol AppearanceSystemColorPanel: AnyObject {
+    var color: NSColor { get set }
+    var level: NSWindow.Level { get set }
+    var showsAlpha: Bool { get set }
+    var isContinuous: Bool { get set }
+    var alpha: CGFloat { get }
+    var notificationObject: AnyObject { get }
+
+    func present()
+    func orderOut()
+}
+
+extension NSColorPanel: AppearanceSystemColorPanel {
+    var notificationObject: AnyObject {
+        self
+    }
+
+    func present() {
+        makeKeyAndOrderFront(nil)
+    }
+
+    func orderOut() {
+        orderOut(nil)
+    }
+}
+
+@MainActor
 final class SystemAppearanceColorPanelDriver:
     NSObject,
     AppearanceColorPanelDriving
 {
     private let notificationCenter: NotificationCenter
-    private let panelProvider: () -> NSColorPanel
+    private let panelProvider: () -> any AppearanceSystemColorPanel
     private var isObserving = false
-    private lazy var panel = panelProvider()
+    private lazy var panel: any AppearanceSystemColorPanel =
+        panelProvider()
 
     var onColorChange: ((NSColor, CGFloat) -> Void)?
     var onClose: (() -> Void)?
 
     init(
         notificationCenter: NotificationCenter = .default,
-        panelProvider: @escaping () -> NSColorPanel = {
+        panelProvider: @escaping () -> any AppearanceSystemColorPanel = {
             NSColorPanel.shared
         }
     ) {
@@ -63,12 +91,12 @@ final class SystemAppearanceColorPanelDriver:
 
     func present() {
         startObserving()
-        panel.makeKeyAndOrderFront(nil)
+        panel.present()
     }
 
     func orderOut() {
         stopObserving()
-        panel.orderOut(nil)
+        panel.orderOut()
     }
 
     private func startObserving() {
@@ -78,13 +106,13 @@ final class SystemAppearanceColorPanelDriver:
             self,
             selector: #selector(colorDidChange(_:)),
             name: NSColorPanel.colorDidChangeNotification,
-            object: panel
+            object: panel.notificationObject
         )
         notificationCenter.addObserver(
             self,
             selector: #selector(panelWillClose(_:)),
             name: NSWindow.willCloseNotification,
-            object: panel
+            object: panel.notificationObject
         )
     }
 
@@ -94,12 +122,12 @@ final class SystemAppearanceColorPanelDriver:
         notificationCenter.removeObserver(
             self,
             name: NSColorPanel.colorDidChangeNotification,
-            object: panel
+            object: panel.notificationObject
         )
         notificationCenter.removeObserver(
             self,
             name: NSWindow.willCloseNotification,
-            object: panel
+            object: panel.notificationObject
         )
     }
 
