@@ -9,6 +9,9 @@
 - Added automated tests for response parsing, process cleanup, cache restoration, and refresh-state behavior.
 - Added a one-command source installer that builds in a temporary SwiftPM scratch directory, installs locally, verifies its ad-hoc signature, and removes build artifacts on exit.
 - Added explicit MIT attribution for the upstream project and initial commit.
+- Added independently remembered LOUD, BOLD, and FROST appearance themes for the panel and menu bar status item.
+- Added real-time controls for theme colors, status colors, typography, outlines, corner radius, shadows, and opacity.
+- Added a global 90%–150% font-size control for the appearance editor.
 
 ### Changed
 - Removed mock quota fallback so the app now prefers real local session-derived quotas.
@@ -25,6 +28,8 @@
 - Allows up to 12 seconds for a local app-server read so slower cold starts do not become false refresh failures.
 - Limited JSONL fallback candidates to 20 files modified within 30 minutes and reduced each file-tail read to 256 KB.
 - Documented separate end-user installation and incremental contributor build workflows.
+- Replaced the system More popover with an arrowless, theme-resolved two-level overlay.
+- Slider changes now show the saving state only after editing ends, then return to saved when persistence completes.
 
 ## [0.1.0] - 2026-07-09
 

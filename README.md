@@ -54,6 +54,9 @@ Codex Limit Peek 基于上游项目
 - 后台每 5 分钟自动刷新
 - 额度较低时发本地通知
 - 可选语音播报，支持 1 / 5 / 10 分钟间隔
+- 在“更多 → 外观”实时切换 LOUD、BOLD、FROST 三套主题
+- 分别记忆三套主题的颜色、字体、描边、圆角、阴影和透明度
+- 单独调节设置页面字体大小，范围为 90%–150%
 - 刷新失败时保留上次值，并显示白底红色斜纹
 - 不读取认证文件，不上传提示词、回复或附件
 
@@ -74,8 +77,12 @@ Codex Limit Peek 基于上游项目
   每个文件只读取尾部 256 KB。
 - **轻量与隐私：** 面板和语音组件按需创建；不读取认证文件，也不记录原始
   会话内容、SQLite 行或 app-server 响应。
+- **可定制外观：** 提供 LOUD、BOLD、FROST 三套独立记忆的主题，并允许实时
+  调整面板、状态栏和状态颜色。主题参数覆盖颜色、字体、描边、圆角、阴影与透明度。
+- **主题化浮层：** “更多”和“外观”使用同一套主题渲染的无尖角双层浮窗，
+  不再依赖系统默认的直角内容框。
 - **安装与质量：** 使用临时目录完成源码构建并自动清理，执行本地签名，
-  由 65 项自动化测试和 GitHub Actions 持续验证。
+  由 129 项自动化测试和 GitHub Actions 持续验证。
 
 更完整的上游提交归属与许可证说明见 [NOTICE.md](NOTICE.md)。
 
@@ -147,17 +154,31 @@ app-server 不可用时，应用会读取以下本地来源作为回退：
 │   └── CodexLimitPeekTests/
 │       ├── AppDelegateLifecycleTests.swift
 │       ├── AppServerQuotaProviderTests.swift
+│       ├── AppearanceEditorTypographyTests.swift
+│       ├── AppearanceStoreTests.swift
+│       ├── AppearanceThemeTests.swift
 │       ├── CodexSessionQuotaProviderTests.swift
+│       ├── MoreOverlayTests.swift
 │       ├── QuotaStoreTests.swift
-│       └── RefreshReliabilityTests.swift
+│       ├── RefreshReliabilityTests.swift
+│       ├── StatusItemAppearanceTests.swift
+│       └── ThemeVisualRecipeTests.swift
 └── Sources/
     └── CodexLimitPeek/
         ├── AppServerQuotaProvider.swift
+        ├── AppearanceEditorTypography.swift
+        ├── AppearanceEditorView.swift
+        ├── AppearanceStore.swift
+        ├── AppearanceTheme.swift
         ├── CodexLimitPeekApp.swift
-        └── RefreshReliability.swift
+        ├── MoreOverlayPresenter.swift
+        ├── MoreOverlayViews.swift
+        ├── RefreshReliability.swift
+        ├── ThemeChromeViews.swift
+        └── ThemeVisualRecipe.swift
 ```
 
-代码目前故意保持得很小，没有拆成很多层。这个项目的目标是把事情做好，而不是把一个菜单栏小工具写成框架。
+代码按额度读取、刷新可靠性和外观渲染拆成轻量组件。这个项目的目标是把事情做好，而不是把一个菜单栏小工具写成框架。
 
 ## 系统要求
 
