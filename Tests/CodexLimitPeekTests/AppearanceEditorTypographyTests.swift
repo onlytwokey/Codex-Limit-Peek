@@ -35,4 +35,12 @@ struct AppearanceEditorTypographyTests {
             AppearanceEditorTypography.minimumHeight(44, scale: 1.5) == 66
         )
     }
+
+    @Test
+    func customColorControlKeepsAVisibleHitTarget() {
+        #expect(
+            AppearanceEditorMetrics.customColorControlWidth >= 25
+        )
+        #expect(AppearanceEditorMetrics.colorControlHeight >= 21)
+    }
 }

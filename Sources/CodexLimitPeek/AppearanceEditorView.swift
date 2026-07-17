@@ -32,6 +32,11 @@ private enum BrutalEditorStyle {
     }
 }
 
+enum AppearanceEditorMetrics {
+    static let colorControlHeight: CGFloat = 21
+    static let customColorControlWidth: CGFloat = 25
+}
+
 struct AppearanceEditorView: View {
     @ObservedObject var store: AppearanceStore
     let onBack: (() -> Void)?
@@ -120,6 +125,8 @@ struct AppearanceEditorView: View {
                     resetSection
                 }
             }
+            .scrollIndicators(.visible, axes: .vertical)
+            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
         }
         .frame(width: 320, height: 548)
         .environment(
@@ -583,6 +590,8 @@ struct StateColorsEditorView: View {
                     }
                 }
             }
+            .scrollIndicators(.visible, axes: .vertical)
+            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
         }
         .frame(width: 320, height: 430)
         .environment(
@@ -1079,6 +1088,15 @@ private struct AppearanceColorRow: View {
     let swatches: [AppearanceColor]
     let onSelectSwatch: (AppearanceColor) -> Void
 
+    private var customPickerIconColor: Color {
+        let background = selectedColor
+            .clamped()
+            .composited(over: .white)
+        return AppearanceColor.black
+            .readable(on: background, minimumRatio: 3)
+            .swiftUIColor
+    }
+
     var body: some View {
         HStack(spacing: 7) {
             Text(title)
@@ -1142,8 +1160,11 @@ private struct AppearanceColorRow: View {
                 supportsOpacity: true
             )
             .labelsHidden()
-            .frame(width: 25, height: 21)
-            .background(BrutalEditorStyle.ink.opacity(0.08))
+            .frame(
+                width: AppearanceEditorMetrics.customColorControlWidth,
+                height: AppearanceEditorMetrics.colorControlHeight
+            )
+            .background(selectedColor.clamped().swiftUIColor)
             .overlay {
                 Rectangle()
                     .strokeBorder(
@@ -1151,15 +1172,21 @@ private struct AppearanceColorRow: View {
                         lineWidth: 1.5
                     )
             }
+            .overlay {
+                Image(systemName: "plus")
+                    .font(.system(size: 8, weight: .black))
+                    .foregroundStyle(customPickerIconColor)
+                    .allowsHitTesting(false)
+            }
             .shadow(
                 color: BrutalEditorStyle.ink,
                 radius: 0,
                 x: 1,
                 y: 1
             )
-            .clipped()
-            .help("打开系统颜色选择器")
-            .accessibilityLabel("\(title)系统颜色选择器")
+            .contentShape(Rectangle())
+            .help("自定义取色…")
+            .accessibilityLabel("自定义\(title)颜色")
         }
         .appearanceEditorMinHeight(30)
     }
