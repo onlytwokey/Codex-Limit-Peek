@@ -1,0 +1,61 @@
+<svg width="920" height="390" viewBox="0 0 920 390" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pageBg" x1="0" y1="0" x2="920" y2="390" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EAF8FF"/>
+      <stop offset="1" stop-color="#F8FDFF"/>
+    </linearGradient>
+    <linearGradient id="cardBg" x1="0" y1="0" x2="0" y2="210" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.76"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.54"/>
+    </linearGradient>
+    <pattern id="failurePattern" width="14" height="14" patternUnits="userSpaceOnUse">
+      <rect width="14" height="14" fill="#FFFFFF"/>
+      <path d="M-4 14L14 -4M3 21L21 3" stroke="#D9242E" stroke-opacity="0.68" stroke-width="3"/>
+    </pattern>
+    <filter id="cardShadow" x="-20%" y="-24%" width="140%" height="160%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#6E9DB3" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <rect width="920" height="390" fill="url(#pageBg)"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', sans-serif">
+    <text x="460" y="46" text-anchor="middle" font-size="30" font-weight="780" fill="#172D3D">刷新健康状态</text>
+    <text x="460" y="78" text-anchor="middle" font-size="18" font-weight="650" fill="#5E7888">短暂故障先确认，只有确认失败后才显示红白斜纹</text>
+
+    <g transform="translate(70 112)" filter="url(#cardShadow)">
+      <rect width="250" height="214" rx="25" fill="url(#cardBg)"/>
+      <rect x="1" y="1" width="248" height="212" rx="24" stroke="#FFFFFF" stroke-opacity="0.76" stroke-width="2"/>
+      <rect x="24" y="28" width="202" height="44" rx="12" fill="#B8F3D1"/>
+      <text x="125" y="58" text-anchor="middle" font-size="24" font-weight="820" fill="#103F28">5d22h | 69%</text>
+      <circle cx="125" cy="102" r="7" fill="#31CB62"/>
+      <text x="125" y="137" text-anchor="middle" font-size="23" font-weight="780" fill="#17462D">实时同步正常</text>
+      <text x="125" y="170" text-anchor="middle" font-size="16" font-weight="620" fill="#5E7888">显示值来自实时读取</text>
+    </g>
+
+    <g transform="translate(335 112)" filter="url(#cardShadow)">
+      <rect width="250" height="214" rx="25" fill="url(#cardBg)"/>
+      <rect x="1" y="1" width="248" height="212" rx="24" stroke="#FFFFFF" stroke-opacity="0.76" stroke-width="2"/>
+      <rect x="24" y="28" width="202" height="44" rx="12" fill="#F8E8B6"/>
+      <text x="125" y="58" text-anchor="middle" font-size="24" font-weight="820" fill="#3A2D0B">5d22h | 69%</text>
+      <circle cx="125" cy="102" r="7" fill="#F6C84A"/>
+      <text x="125" y="137" text-anchor="middle" font-size="23" font-weight="780" fill="#5A4512">正在确认失败</text>
+      <text x="125" y="170" text-anchor="middle" font-size="16" font-weight="620" fill="#5E7888">15 / 45 秒后重试</text>
+      <text x="125" y="194" text-anchor="middle" font-size="14" font-weight="620" fill="#7C8F99">暂不显示斜纹</text>
+    </g>
+
+    <g transform="translate(600 112)" filter="url(#cardShadow)">
+      <rect width="250" height="214" rx="25" fill="url(#cardBg)"/>
+      <rect x="1" y="1" width="248" height="212" rx="24" stroke="#FFFFFF" stroke-opacity="0.76" stroke-width="2"/>
+      <rect x="24" y="28" width="202" height="44" rx="12" fill="url(#failurePattern)"/>
+      <rect x="24.75" y="28.75" width="200.5" height="42.5" rx="11.25" stroke="#D9242E" stroke-opacity="0.30" stroke-width="1.5"/>
+      <text x="125" y="58" text-anchor="middle" font-size="24" font-weight="820" fill="#74191E">5d22h | 69%</text>
+      <circle cx="125" cy="102" r="7" fill="#D9242E"/>
+      <text x="125" y="137" text-anchor="middle" font-size="23" font-weight="780" fill="#74191E">已确认刷新失败</text>
+      <text x="125" y="170" text-anchor="middle" font-size="16" font-weight="620" fill="#5E7888">保留最近一次可用值</text>
+      <text x="125" y="194" text-anchor="middle" font-size="14" font-weight="620" fill="#7C8F99">继续自动尝试恢复</text>
+    </g>
+
+    <text x="460" y="364" text-anchor="middle" font-size="17" font-weight="700" fill="#7A2B2F">红白斜纹表示实时刷新已确认失败，不表示额度已经耗尽</text>
+  </g>
+</svg>
