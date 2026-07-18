@@ -8,9 +8,55 @@ import UniformTypeIdentifiers
 struct DocumentationPNGMetadata: Equatable {
     let width: Int
     let height: Int
+    let dpiWidth: Double
+    let dpiHeight: Double
     let isPNG: Bool
     let isSRGB: Bool
     let byteCount: Int
+}
+
+final class DocumentationInMemoryUserDefaults:
+    UserDefaults,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var values: [String: Any]
+
+    init(values: [String: Any] = [:]) {
+        self.values = values
+        super.init(suiteName: nil)!
+    }
+
+    override func object(forKey defaultName: String) -> Any? {
+        lock.lock()
+        defer { lock.unlock() }
+        return values[defaultName]
+    }
+
+    override func set(
+        _ value: Any?,
+        forKey defaultName: String
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        if let value {
+            values[defaultName] = value
+        } else {
+            values.removeValue(forKey: defaultName)
+        }
+    }
+
+    override func removeObject(forKey defaultName: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        values.removeValue(forKey: defaultName)
+    }
+
+    override func dictionaryRepresentation() -> [String: Any] {
+        lock.lock()
+        defer { lock.unlock() }
+        return values
+    }
 }
 
 private struct DocumentationQuotaProvider: QuotaProvider {
@@ -20,18 +66,21 @@ private struct DocumentationQuotaProvider: QuotaProvider {
 }
 
 enum DocumentationPreviewRenderError: Error {
-    case cannotCreateUserDefaults
+    case cannotLocateUserPreferences
     case cannotCreateBitmap
     case cannotEncodePNG
     case cannotReadPNG
+    case missingDPI
     case missingColorSpace
 }
 
 @MainActor
 enum DocumentationPreviewRenderer {
+    private static let preferenceSuitePrefix =
+        "CodexLimitPeek.DocumentationPreview."
+    private static let offscreenMargin: CGFloat = 2_048
+
     private struct IsolatedStores {
-        let suite: String
-        let defaults: UserDefaults
         let appearanceStore: AppearanceStore
         let quotaStore: QuotaStore
     }
@@ -70,11 +119,6 @@ enum DocumentationPreviewRenderer {
         ) throws -> Result
     ) throws -> Result {
         let stores = try makeIsolatedStores()
-        defer {
-            stores.defaults.removePersistentDomain(
-                forName: stores.suite
-            )
-        }
         return try operation(
             stores.appearanceStore,
             stores.quotaStore
@@ -82,29 +126,22 @@ enum DocumentationPreviewRenderer {
     }
 
     private static func makeIsolatedStores() throws -> IsolatedStores {
-        let suite = "CodexLimitPeek.DocumentationPreview."
-            + UUID().uuidString
-        guard let defaults = UserDefaults(suiteName: suite) else {
-            throw DocumentationPreviewRenderError
-                .cannotCreateUserDefaults
-        }
-
         let encoder = JSONEncoder()
+        var initialValues: [String: Any] = [
+            AppearancePersistenceKey.selectedTheme:
+                AppearanceThemeID.loud.rawValue,
+            AppearancePersistenceKey.editorFontScale:
+                AppearanceEditorTypography.defaultScale
+        ]
         for theme in AppearanceThemeID.allCases {
-            defaults.set(
-                try encoder.encode(
-                    AppearanceProfile.default(for: theme)
-                ),
-                forKey: AppearancePersistenceKey.profile(theme)
+            initialValues[
+                AppearancePersistenceKey.profile(theme)
+            ] = try encoder.encode(
+                AppearanceProfile.default(for: theme)
             )
         }
-        defaults.set(
-            AppearanceThemeID.loud.rawValue,
-            forKey: AppearancePersistenceKey.selectedTheme
-        )
-        defaults.set(
-            AppearanceEditorTypography.defaultScale,
-            forKey: AppearancePersistenceKey.editorFontScale
+        let defaults = DocumentationInMemoryUserDefaults(
+            values: initialValues
         )
 
         let now = fixedNow
@@ -131,10 +168,43 @@ enum DocumentationPreviewRenderer {
             displayMode: .dualWindow
         )
         return IsolatedStores(
-            suite: suite,
-            defaults: defaults,
             appearanceStore: appearanceStore,
             quotaStore: quotaStore
+        )
+    }
+
+    private static func userPreferencesDirectory() throws -> URL {
+        guard let library = FileManager.default.urls(
+            for: .libraryDirectory,
+            in: .userDomainMask
+        ).first else {
+            throw DocumentationPreviewRenderError
+                .cannotLocateUserPreferences
+        }
+        return library
+            .appendingPathComponent(
+                "Preferences",
+                isDirectory: true
+            )
+            .standardizedFileURL
+    }
+
+    static func preferenceArtifactsForTesting() throws -> Set<URL> {
+        let directory = try userPreferencesDirectory()
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        )
+        return Set(
+            contents.filter { url in
+                guard url.pathExtension == "plist" else {
+                    return false
+                }
+                let suite = url
+                    .deletingPathExtension()
+                    .lastPathComponent
+                return suite.hasPrefix(preferenceSuitePrefix)
+            }
         )
     }
 
@@ -157,6 +227,21 @@ enum DocumentationPreviewRenderer {
         guard let colorSpaceName = image.colorSpace?.name else {
             throw DocumentationPreviewRenderError.missingColorSpace
         }
+        guard
+            let properties = CGImageSourceCopyPropertiesAtIndex(
+                source,
+                0,
+                nil
+            ) as? [CFString: Any],
+            let dpiWidth = (
+                properties[kCGImagePropertyDPIWidth] as? NSNumber
+            )?.doubleValue,
+            let dpiHeight = (
+                properties[kCGImagePropertyDPIHeight] as? NSNumber
+            )?.doubleValue
+        else {
+            throw DocumentationPreviewRenderError.missingDPI
+        }
         let byteCount = try url.resourceValues(
             forKeys: [.fileSizeKey]
         ).fileSize ?? 0
@@ -164,6 +249,8 @@ enum DocumentationPreviewRenderer {
         return DocumentationPNGMetadata(
             width: image.width,
             height: image.height,
+            dpiWidth: dpiWidth,
+            dpiHeight: dpiHeight,
             isPNG: imageType == UTType.png.identifier,
             isSRGB: colorSpaceName == CGColorSpace.sRGB,
             byteCount: byteCount
@@ -221,11 +308,6 @@ enum DocumentationPreviewRenderer {
             AppearanceEditorInitialScrollTarget?
     ) async throws -> Data {
         let stores = try makeIsolatedStores()
-        defer {
-            stores.defaults.removePersistentDomain(
-                forName: stores.suite
-            )
-        }
         return try await rasterize(
             DocumentationSettingsPreview(
                 appearanceStore: stores.appearanceStore,
@@ -272,11 +354,13 @@ enum DocumentationPreviewRenderer {
         window.appearance = NSAppearance(named: .aqua)
         window.colorSpace = .sRGB
         window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
         window.contentView = host
         window.setFrameOrigin(
-            NSPoint(x: -10_000, y: -10_000)
+            offscreenOrigin(for: pointSize)
         )
-        window.orderFrontRegardless()
+        window.orderFront(nil)
         defer {
             window.contentView = nil
             window.orderOut(nil)
@@ -318,6 +402,18 @@ enum DocumentationPreviewRenderer {
                 .cannotEncodePNG
         }
         return png
+    }
+
+    private static func offscreenOrigin(
+        for pointSize: NSSize
+    ) -> NSPoint {
+        let screenFrames = NSScreen.screens.map(\.frame)
+        let minimumX = screenFrames.map(\.minX).min() ?? 0
+        let minimumY = screenFrames.map(\.minY).min() ?? 0
+        return NSPoint(
+            x: minimumX - pointSize.width - offscreenMargin,
+            y: minimumY - pointSize.height - offscreenMargin
+        )
     }
 }
 

@@ -22,9 +22,27 @@ struct DocumentationPreviewRendererTests {
 
     @Test @MainActor
     func isolatedStoreUsesOnlyApprovedDefaults() throws {
+        let standard = UserDefaults.standard
+        let standardThemeBefore = standard.string(
+            forKey: AppearancePersistenceKey.selectedTheme
+        )
+        let standardProfileBefore = standard.data(
+            forKey: AppearancePersistenceKey.profile(.loud)
+        )
+
         try DocumentationPreviewRenderer.withIsolatedStores {
             appearanceStore,
             quotaStore in
+            #expect(
+                standard.string(
+                    forKey: AppearancePersistenceKey.selectedTheme
+                ) == standardThemeBefore
+            )
+            #expect(
+                standard.data(
+                    forKey: AppearancePersistenceKey.profile(.loud)
+                ) == standardProfileBefore
+            )
             #expect(appearanceStore.selectedTheme == .loud)
             #expect(
                 appearanceStore.editorFontScale
@@ -42,6 +60,70 @@ struct DocumentationPreviewRendererTests {
             )
             #expect(!quotaStore.snapshot.isUnavailable)
         }
+        #expect(
+            standard.string(
+                forKey: AppearancePersistenceKey.selectedTheme
+            ) == standardThemeBefore
+        )
+        #expect(
+            standard.data(
+                forKey: AppearancePersistenceKey.profile(.loud)
+            ) == standardProfileBefore
+        )
+    }
+
+    @Test @MainActor
+    func inMemoryDefaultsStayProcessLocal() throws {
+        let marker =
+            "DocumentationPreview.InMemory.\(UUID().uuidString)"
+        let integerKey = "\(marker).integer"
+        let doubleKey = "\(marker).double"
+        let dataKey = "\(marker).data"
+        let markerData = Data([0x43, 0x4C, 0x50])
+        let before = try DocumentationPreviewRenderer
+            .preferenceArtifactsForTesting()
+        #expect(UserDefaults.standard.object(forKey: marker) == nil)
+
+        let defaults = DocumentationInMemoryUserDefaults(
+            values: [
+                marker: "seed",
+                integerKey: 7,
+                doubleKey: 1.25,
+                dataKey: markerData
+            ]
+        )
+        #expect(defaults.string(forKey: marker) == "seed")
+        #expect(defaults.integer(forKey: integerKey) == 7)
+        #expect(defaults.double(forKey: doubleKey) == 1.25)
+        #expect(defaults.data(forKey: dataKey) == markerData)
+
+        defaults.set("changed", forKey: marker)
+        #expect(defaults.string(forKey: marker) == "changed")
+        #expect(UserDefaults.standard.object(forKey: marker) == nil)
+        defaults.removeObject(forKey: marker)
+        #expect(defaults.object(forKey: marker) == nil)
+
+        try DocumentationPreviewRenderer.withIsolatedStores {
+            _,
+            _ in
+        }
+        var receivedExpectedError = false
+        do {
+            try DocumentationPreviewRenderer.withIsolatedStores {
+                _,
+                _ in
+                throw DocumentationIsolationProbeError.expected
+            }
+        } catch DocumentationIsolationProbeError.expected {
+            receivedExpectedError = true
+        }
+
+        #expect(receivedExpectedError)
+        #expect(UserDefaults.standard.object(forKey: marker) == nil)
+        #expect(
+            try DocumentationPreviewRenderer
+                .preferenceArtifactsForTesting() == before
+        )
     }
 
     @Test @MainActor
@@ -110,6 +192,8 @@ struct DocumentationPreviewRendererTests {
 
             #expect(metadata.width == expected.0)
             #expect(metadata.height == expected.1)
+            #expect(abs(metadata.dpiWidth - 144) < 0.5)
+            #expect(abs(metadata.dpiHeight - 144) < 0.5)
             #expect(metadata.isPNG)
             #expect(metadata.isSRGB)
             #expect(metadata.byteCount <= 3 * 1_024 * 1_024)
@@ -122,6 +206,9 @@ struct DocumentationPreviewRendererTests {
 
     @Test @MainActor
     func offscreenRenderingExercisesEveryInjectedSeam() async throws {
+        let preferenceArtifactsBefore =
+            try DocumentationPreviewRenderer
+                .preferenceArtifactsForTesting()
         let baselineTheme = try await DocumentationPreviewRenderer
             .renderThemePreviewForTesting(
                 data: DocumentationPreviewRenderer.panelData,
@@ -163,5 +250,14 @@ struct DocumentationPreviewRendererTests {
 
         #expect(anchoredSettings != appearanceAtDefault)
         #expect(anchoredSettings != statusAtDefault)
+        #expect(
+            try DocumentationPreviewRenderer
+                .preferenceArtifactsForTesting()
+                == preferenceArtifactsBefore
+        )
     }
+}
+
+private enum DocumentationIsolationProbeError: Error {
+    case expected
 }
