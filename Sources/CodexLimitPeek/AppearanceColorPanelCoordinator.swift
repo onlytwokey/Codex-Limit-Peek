@@ -11,6 +11,7 @@ protocol AppearanceColorPanelDriving: AnyObject {
     var level: NSWindow.Level { get set }
     var showsAlpha: Bool { get set }
     var isContinuous: Bool { get set }
+    var hidesOnDeactivate: Bool { get set }
     var onColorChange: ((NSColor, CGFloat) -> Void)? { get set }
     var onClose: (() -> Void)? { get set }
 
@@ -24,10 +25,12 @@ protocol AppearanceSystemColorPanel: AnyObject {
     var level: NSWindow.Level { get set }
     var showsAlpha: Bool { get set }
     var isContinuous: Bool { get set }
+    var hidesOnDeactivate: Bool { get set }
     var alpha: CGFloat { get }
     var notificationObject: AnyObject { get }
 
     func present()
+    func forceFront()
     func orderOut()
 }
 
@@ -37,7 +40,11 @@ extension NSColorPanel: AppearanceSystemColorPanel {
     }
 
     func present() {
-        makeKeyAndOrderFront(nil)
+        orderFront(nil)
+    }
+
+    func forceFront() {
+        orderFrontRegardless()
     }
 
     func orderOut() {
@@ -89,9 +96,17 @@ final class SystemAppearanceColorPanelDriver:
         set { panel.isContinuous = newValue }
     }
 
+    var hidesOnDeactivate: Bool {
+        get { panel.hidesOnDeactivate }
+        set { panel.hidesOnDeactivate = newValue }
+    }
+
     func present() {
+        let intendedLevel = panel.level
         startObserving()
         panel.present()
+        panel.level = intendedLevel
+        panel.forceFront()
     }
 
     func orderOut() {
@@ -168,9 +183,11 @@ final class AppearanceColorPanelCoordinator:
     AppearanceColorPanelCoordinating
 {
     private struct SavedPanelState {
+        let color: NSColor
         let level: NSWindow.Level
         let showsAlpha: Bool
         let isContinuous: Bool
+        let hidesOnDeactivate: Bool
     }
 
     private let driver: any AppearanceColorPanelDriving
@@ -204,9 +221,11 @@ final class AppearanceColorPanelCoordinator:
     ) {
         close()
         savedState = SavedPanelState(
+            color: driver.color,
             level: driver.level,
             showsAlpha: driver.showsAlpha,
-            isContinuous: driver.isContinuous
+            isContinuous: driver.isContinuous,
+            hidesOnDeactivate: driver.hidesOnDeactivate
         )
         activeContext = AppearanceColorPanelEditContext(
             theme: theme,
@@ -216,6 +235,7 @@ final class AppearanceColorPanelCoordinator:
         driver.color = color.nsColor
         driver.showsAlpha = true
         driver.isContinuous = true
+        driver.hidesOnDeactivate = false
         driver.level = NSWindow.Level(
             rawValue: overlayLevel.rawValue + 1
         )
@@ -257,9 +277,11 @@ final class AppearanceColorPanelCoordinator:
             driver.orderOut()
         }
         if let state {
+            driver.color = state.color
             driver.level = state.level
             driver.showsAlpha = state.showsAlpha
             driver.isContinuous = state.isContinuous
+            driver.hidesOnDeactivate = state.hidesOnDeactivate
         }
         savedState = nil
         activeContext = nil

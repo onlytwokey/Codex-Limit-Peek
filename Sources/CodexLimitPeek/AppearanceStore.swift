@@ -334,6 +334,10 @@ final class AppearanceStore: ObservableObject {
         profile(for: selectedTheme)
     }
 
+    var canResetCurrentTheme: Bool {
+        currentProfile != .default(for: selectedTheme)
+    }
+
     func profile(for theme: AppearanceThemeID) -> AppearanceProfile {
         profiles[theme] ?? .default(for: theme)
     }
@@ -395,6 +399,7 @@ final class AppearanceStore: ObservableObject {
     }
 
     func resetCurrentTheme() {
+        guard canResetCurrentTheme else { return }
         profiles[selectedTheme] = .default(for: selectedTheme)
         markChanged()
     }

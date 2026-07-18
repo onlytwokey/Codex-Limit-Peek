@@ -41,6 +41,20 @@ private final class RecordingColorPanelCoordinator:
         activeContext = nil
         onChange = nil
     }
+
+    func simulateColorChange(_ color: AppearanceColor) {
+        guard let activeContext else { return }
+        onChange?(
+            activeContext.theme,
+            activeContext.token,
+            color
+        )
+    }
+
+    func simulatePanelClose() {
+        activeContext = nil
+        onChange = nil
+    }
 }
 
 @Suite(.serialized)
@@ -132,6 +146,21 @@ struct MoreOverlayTests {
         expected: MoreOverlayDismissalAction
     ) {
         #expect(MoreOverlayDismissalPolicy.action(for: role) == expected)
+    }
+
+    @Test(arguments: [
+        MoreOverlayClickRole.parentPanel,
+        MoreOverlayClickRole.otherApplicationWindow
+    ])
+    func colorEditingSessionProtectsImplicitOutsideClicks(
+        role: MoreOverlayClickRole
+    ) {
+        #expect(
+            MoreOverlayDismissalPolicy.action(
+                for: role,
+                isColorEditingSessionActive: true
+            ) == .keep
+        )
     }
 
     @Test(arguments: [
@@ -320,6 +349,100 @@ struct MoreOverlayTests {
     }
 
     @Test @MainActor
+    func colorEditingSessionKeepsParentAndGlobalOutsideClicksUntilPanelCloses()
+        throws
+    {
+        let suite = "MoreOverlayTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let appearance = AppearanceStore(defaults: defaults)
+        let coordinator = RecordingColorPanelCoordinator()
+        let presenter = MoreOverlayPresenter(
+            quotaStore: QuotaStore(defaults: defaults),
+            appearanceStore: appearance,
+            colorPanelCoordinator: coordinator
+        )
+        let parent = NSPanel(
+            contentRect: NSRect(
+                x: 400,
+                y: 620,
+                width: 380,
+                height: 260
+            ),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let container = NSView(
+            frame: NSRect(
+                x: 0,
+                y: 0,
+                width: 380,
+                height: 260
+            )
+        )
+        let anchor = MoreOverlayAnchorView(
+            frame: NSRect(
+                x: 330,
+                y: 220,
+                width: 25,
+                height: 25
+            )
+        )
+        container.addSubview(anchor)
+        parent.contentView = container
+        presenter.attach(to: parent)
+        presenter.setAnchorView(anchor)
+        presenter.present()
+        presenter.navigate(to: .appearance)
+        presenter.openColorPanel(for: .background)
+
+        #expect(presenter.isColorEditingSessionActive)
+        #expect(!presenter.shouldDismissForGlobalOutsideClick)
+        #expect(
+            presenter.dismissalAction(for: .parentPanel)
+                == .keep
+        )
+
+        let pickedColor = AppearanceColor(
+            red: 0.1,
+            green: 0.2,
+            blue: 0.3,
+            alpha: 0.8
+        )
+        coordinator.simulateColorChange(pickedColor)
+        #expect(appearance.color(for: .background) == pickedColor)
+
+        let parentClick = try #require(
+            NSEvent.mouseEvent(
+                with: .leftMouseDown,
+                location: NSPoint(x: 10, y: 10),
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: parent.windowNumber,
+                context: nil,
+                eventNumber: 1,
+                clickCount: 1,
+                pressure: 1
+            )
+        )
+        #expect(presenter.handleLocalEvent(parentClick) === parentClick)
+        #expect(presenter.isPresented)
+
+        coordinator.simulatePanelClose()
+
+        #expect(!presenter.isColorEditingSessionActive)
+        #expect(presenter.shouldDismissForGlobalOutsideClick)
+        #expect(
+            presenter.dismissalAction(for: .parentPanel)
+                == .closeOverlay
+        )
+        #expect(presenter.handleLocalEvent(parentClick) === parentClick)
+        #expect(!presenter.isPresented)
+    }
+
+    @Test @MainActor
     func openingColorPanelWhileOverlayIsNotPresentedIsANoOp() {
         let suite = "MoreOverlayTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -341,7 +464,7 @@ struct MoreOverlayTests {
     }
 
     @Test @MainActor
-    func presentedPairKeepsDirectOrderingAndUpdatesBothFramesTogether()
+    func presentedPairKeepsChildWindowOrderingAndUpdatesAllFramesTogether()
         throws
     {
         let suite = "MoreOverlayTests.\(UUID().uuidString)"
@@ -354,24 +477,30 @@ struct MoreOverlayTests {
             quotaStore: quota,
             appearanceStore: appearance
         )
+        let visibleFrame = NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1_440, height: 900)
         let parent = NSPanel(
             contentRect: NSRect(
-                x: 400,
-                y: 620,
+                x: visibleFrame.midX - 190,
+                y: visibleFrame.midY - 130,
                 width: 380,
                 height: 260
             ),
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         parent.level = .popUpMenu
+        parent.hidesOnDeactivate = false
         let mainShadow = NSPanel(
             contentRect: .zero,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
+        mainShadow.level = parent.level
+        mainShadow.hidesOnDeactivate = false
+        mainShadow.ignoresMouseEvents = true
         parent.addChildWindow(mainShadow, ordered: .below)
 
         let container = NSView(
@@ -384,8 +513,13 @@ struct MoreOverlayTests {
         parent.contentView = container
         presenter.attach(to: parent)
         presenter.setAnchorView(anchor)
+        parent.orderFrontRegardless()
         presenter.present()
-        defer { presenter.close() }
+        defer {
+            presenter.close()
+            mainShadow.orderOut(nil)
+            parent.orderOut(nil)
+        }
 
         let pair = try #require(presenter.ensureWindowPair())
         let orderedChildren = try #require(parent.childWindows)
@@ -399,6 +533,18 @@ struct MoreOverlayTests {
         #expect(pair.interaction.level == parent.level)
         #expect(pair.hitShield.level == parent.level)
         #expect(pair.decoration.level == parent.level)
+        #expect(parent.isVisible)
+        #expect(mainShadow.isVisible)
+        #expect(pair.decoration.isVisible)
+        #expect(pair.hitShield.isVisible)
+        #expect(pair.interaction.isVisible)
+        try expectWindowServerOrder([
+            pair.interaction,
+            pair.hitShield,
+            pair.decoration,
+            parent,
+            mainShadow
+        ])
 
         let anchorRect = try #require(anchor.screenRect)
         #expect(
@@ -503,6 +649,13 @@ struct MoreOverlayTests {
                 == MoreOverlayMetrics.appearanceSize
         )
         #expect(pair.interaction.hasNestedScrollView)
+        try expectWindowServerOrder([
+            pair.interaction,
+            pair.hitShield,
+            pair.decoration,
+            parent,
+            mainShadow
+        ])
         #expect(
             pair.decoration.frame
                 == pair.interaction.frame.insetBy(
@@ -550,6 +703,16 @@ struct MoreOverlayTests {
         #expect(reused.decoration === pair.decoration)
         #expect(parent.childWindows?.last === pair.interaction)
         #expect(presenter.hasLocalEventMonitor)
+        #expect(pair.decoration.isVisible)
+        #expect(pair.hitShield.isVisible)
+        #expect(pair.interaction.isVisible)
+        try expectWindowServerOrder([
+            pair.interaction,
+            pair.hitShield,
+            pair.decoration,
+            parent,
+            mainShadow
+        ])
 
         let escape = try #require(
             NSEvent.keyEvent(
@@ -647,4 +810,42 @@ private final class RecordingScrollView: NSScrollView {
     override func scrollWheel(with event: NSEvent) {
         didReceiveScrollWheel = true
     }
+}
+
+@MainActor
+private func expectWindowServerOrder(
+    _ windows: [NSWindow]
+) throws {
+    let deadline = Date().addingTimeInterval(0.5)
+    while Date() < deadline {
+        if
+            let indices = windowServerIndices(for: windows),
+            indices == indices.sorted()
+        {
+            return
+        }
+        RunLoop.current.run(
+            until: Date().addingTimeInterval(0.01)
+        )
+    }
+
+    let indices = try #require(windowServerIndices(for: windows))
+    #expect(indices == indices.sorted())
+}
+
+@MainActor
+private func windowServerIndices(
+    for windows: [NSWindow]
+) -> [Int]? {
+    let rows = CGWindowListCopyWindowInfo(
+        [.optionOnScreenOnly, .excludeDesktopElements],
+        kCGNullWindowID
+    ) as? [[String: Any]] ?? []
+    let frontToBack = rows.compactMap {
+        ($0[kCGWindowNumber as String] as? NSNumber)?.intValue
+    }
+    let indices = windows.compactMap { window in
+        frontToBack.firstIndex(of: window.windowNumber)
+    }
+    return indices.count == windows.count ? indices : nil
 }

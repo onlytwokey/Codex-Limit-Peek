@@ -304,7 +304,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             closePanel()
         } else {
             positionPanel(relativeTo: statusView)
-            panelShadowWindow?.orderFrontRegardless()
+            if
+                let panelShadowWindow,
+                panelShadowWindow.parent !== panelWindow
+            {
+                panelWindow.addChildWindow(
+                    panelShadowWindow,
+                    ordered: .below
+                )
+            }
             panelWindow.orderFrontRegardless()
             startOutsideClickMonitor()
             quotaStore.refresh(force: false)
@@ -314,7 +322,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func closePanel() {
         moreOverlayPresenter.close()
         panelWindow?.orderOut(nil)
-        panelShadowWindow?.orderOut(nil)
         stopOutsideClickMonitor()
     }
 
@@ -364,7 +371,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.closePanel()
+                guard
+                    let self,
+                    self.moreOverlayPresenter
+                        .shouldDismissForGlobalOutsideClick
+                else {
+                    return
+                }
+                self.closePanel()
             }
         }
     }
@@ -726,7 +740,8 @@ struct PanelGlassBackground: View {
             chrome: shell,
             fill: appearance.backgroundColor,
             fillStyle: appearance.visuals.panelFill,
-            gradientEnd: appearance.panelGradientEndColor
+            gradientEnd: appearance.panelGradientEndColor,
+            rendersHardShadowExplicitly: includesShadow
         )
     }
 }

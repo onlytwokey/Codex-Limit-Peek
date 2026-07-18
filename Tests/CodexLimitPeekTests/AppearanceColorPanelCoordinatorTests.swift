@@ -10,6 +10,7 @@ private final class FakeAppearanceColorPanelDriver:
     var level: NSWindow.Level = .floating
     var showsAlpha = false
     var isContinuous = false
+    var hidesOnDeactivate = true
     var onColorChange: ((NSColor, CGFloat) -> Void)?
     var onClose: (() -> Void)?
     private(set) var presentCount = 0
@@ -45,8 +46,12 @@ private final class RecordingSystemColorPanel:
     var level: NSWindow.Level = .floating
     var showsAlpha = false
     var isContinuous = false
+    var hidesOnDeactivate = true
+    var levelResetDuringPresentation: NSWindow.Level?
     private(set) var presentCount = 0
     private(set) var orderOutCount = 0
+    private(set) var forceFrontCount = 0
+    private(set) var levelsAtForceFront: [NSWindow.Level] = []
 
     var alpha: CGFloat {
         color.alphaComponent
@@ -58,10 +63,18 @@ private final class RecordingSystemColorPanel:
 
     func present() {
         presentCount += 1
+        if let levelResetDuringPresentation {
+            level = levelResetDuringPresentation
+        }
     }
 
     func orderOut() {
         orderOutCount += 1
+    }
+
+    func forceFront() {
+        forceFrontCount += 1
+        levelsAtForceFront.append(level)
     }
 }
 
@@ -102,6 +115,8 @@ struct AppearanceColorPanelCoordinatorTests {
         driver.level = .popUpMenu
         driver.showsAlpha = true
         driver.isContinuous = true
+        driver.hidesOnDeactivate = false
+        panel.levelResetDuringPresentation = .normal
         driver.present()
         driver.present()
 
@@ -117,6 +132,10 @@ struct AppearanceColorPanelCoordinatorTests {
 
         #expect(providerCallCount == 1)
         #expect(panel.presentCount == 2)
+        #expect(panel.level == .popUpMenu)
+        #expect(!panel.hidesOnDeactivate)
+        #expect(panel.forceFrontCount == 2)
+        #expect(panel.levelsAtForceFront == [.popUpMenu, .popUpMenu])
         #expect(colorChangeCount == 1)
         #expect(
             abs((receivedColor?.redComponent ?? 0) - 0.2)
@@ -224,6 +243,14 @@ struct AppearanceColorPanelCoordinatorTests {
     func closeRestoresPanelStateAndClearsContext() {
         let driver = FakeAppearanceColorPanelDriver()
         driver.level = .floating
+        let originalColor = NSColor(
+            srgbRed: 0.11,
+            green: 0.22,
+            blue: 0.33,
+            alpha: 0.44
+        )
+        driver.color = originalColor
+        driver.hidesOnDeactivate = true
         let coordinator = AppearanceColorPanelCoordinator(
             driver: driver
         )
@@ -241,6 +268,7 @@ struct AppearanceColorPanelCoordinatorTests {
         )
         #expect(driver.showsAlpha)
         #expect(driver.isContinuous)
+        #expect(!driver.hidesOnDeactivate)
         #expect(driver.presentCount == 1)
 
         coordinator.close()
@@ -248,6 +276,8 @@ struct AppearanceColorPanelCoordinatorTests {
         #expect(driver.level == .floating)
         #expect(!driver.showsAlpha)
         #expect(!driver.isContinuous)
+        #expect(driver.hidesOnDeactivate)
+        #expect(driver.color == originalColor)
         #expect(driver.orderOutCount == 1)
         #expect(driver.onColorChange == nil)
         #expect(driver.onClose == nil)
@@ -260,6 +290,7 @@ struct AppearanceColorPanelCoordinatorTests {
         driver.level = .modalPanel
         driver.showsAlpha = true
         driver.isContinuous = true
+        driver.hidesOnDeactivate = false
         let coordinator = AppearanceColorPanelCoordinator(
             driver: driver
         )
@@ -272,17 +303,27 @@ struct AppearanceColorPanelCoordinatorTests {
         ) { _, _, _ in }
         driver.showsAlpha = false
         driver.isContinuous = false
+        driver.hidesOnDeactivate = true
 
         coordinator.close()
 
         #expect(driver.level == .modalPanel)
         #expect(driver.showsAlpha)
         #expect(driver.isContinuous)
+        #expect(!driver.hidesOnDeactivate)
     }
 
     @Test @MainActor
     func manualPanelCloseRestoresStateWithoutOrderingOutAgain() {
         let driver = FakeAppearanceColorPanelDriver()
+        let originalColor = NSColor(
+            srgbRed: 0.7,
+            green: 0.6,
+            blue: 0.5,
+            alpha: 0.4
+        )
+        driver.color = originalColor
+        driver.hidesOnDeactivate = true
         let coordinator = AppearanceColorPanelCoordinator(
             driver: driver
         )
@@ -293,11 +334,15 @@ struct AppearanceColorPanelCoordinatorTests {
             above: .popUpMenu
         ) { _, _, _ in }
 
+        #expect(!driver.hidesOnDeactivate)
+
         driver.simulateUserClose()
 
         #expect(driver.level == .floating)
         #expect(!driver.showsAlpha)
         #expect(!driver.isContinuous)
+        #expect(driver.hidesOnDeactivate)
+        #expect(driver.color == originalColor)
         #expect(coordinator.activeContext == nil)
         #expect(driver.orderOutCount == 0)
         #expect(driver.onColorChange == nil)

@@ -74,6 +74,35 @@ enum AppearanceEditorMetrics {
     static let customColorControlWidth: CGFloat = 25
 }
 
+struct AppearanceResetConfirmationState: Equatable, Sendable {
+    private(set) var requestedTheme: AppearanceThemeID?
+
+    mutating func request(
+        for theme: AppearanceThemeID,
+        canReset: Bool
+    ) {
+        requestedTheme = canReset ? theme : nil
+    }
+
+    mutating func selectedThemeDidChange(
+        to theme: AppearanceThemeID
+    ) {
+        guard requestedTheme != theme else { return }
+        requestedTheme = nil
+    }
+
+    mutating func confirm(
+        for selectedTheme: AppearanceThemeID
+    ) -> Bool {
+        defer { requestedTheme = nil }
+        return requestedTheme == selectedTheme
+    }
+
+    mutating func cancel() {
+        requestedTheme = nil
+    }
+}
+
 enum StatusItemEditorField:
     String,
     CaseIterable,
@@ -184,7 +213,8 @@ struct AppearanceEditorView: View {
 
     @Environment(\.appearanceEditorInitialScrollTarget)
     private var initialScrollTarget
-    @State private var showsResetConfirmation = false
+    @State private var resetConfirmation =
+        AppearanceResetConfirmationState()
 
     init(
         store: AppearanceStore,
@@ -315,20 +345,8 @@ struct AppearanceEditorView: View {
             store.editorFontScale
         )
         .foregroundStyle(BrutalEditorStyle.ink)
-        .confirmationDialog(
-            "重置 \(store.selectedTheme.displayName)？",
-            isPresented: $showsResetConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button(
-                "恢复 \(store.selectedTheme.displayName) 默认值",
-                role: .destructive
-            ) {
-                store.resetCurrentTheme()
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("只会重置当前主题，另外两套主题的设置会保留。")
+        .onChange(of: store.selectedTheme) { _, selectedTheme in
+            resetConfirmation.selectedThemeDidChange(to: selectedTheme)
         }
     }
 
@@ -650,40 +668,70 @@ struct AppearanceEditorView: View {
 
     private var resetSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Button(role: .destructive) {
-                showsResetConfirmation = true
-            } label: {
-                Label(
-                    "恢复当前主题默认值",
-                    systemImage: "arrow.counterclockwise"
-                )
-                .appearanceEditorFont(
-                    size: 9,
-                    weight: .black,
-                    design: .monospaced
-                )
-                .foregroundStyle(BrutalEditorStyle.ink)
-                .frame(maxWidth: .infinity)
-                .appearanceEditorMinHeight(30)
-                .background {
-                    Rectangle()
-                        .fill(BrutalEditorStyle.yellow)
-                        .shadow(
-                            color: BrutalEditorStyle.ink,
-                            radius: 0,
-                            x: 2,
-                            y: 2
-                        )
+            if
+                let requestedTheme = resetConfirmation.requestedTheme,
+                requestedTheme == store.selectedTheme
+            {
+                resetConfirmationView(for: requestedTheme)
+            } else {
+                Button(role: .destructive) {
+                    resetConfirmation.request(
+                        for: store.selectedTheme,
+                        canReset: store.canResetCurrentTheme
+                    )
+                } label: {
+                    Label(
+                        store.canResetCurrentTheme
+                            ? "恢复当前主题默认值"
+                            : "当前主题已是默认设置",
+                        systemImage: store.canResetCurrentTheme
+                            ? "arrow.counterclockwise"
+                            : "checkmark.circle.fill"
+                    )
+                    .appearanceEditorFont(
+                        size: 9,
+                        weight: .black,
+                        design: .monospaced
+                    )
+                    .foregroundStyle(BrutalEditorStyle.ink)
+                    .frame(maxWidth: .infinity)
+                    .appearanceEditorMinHeight(30)
+                    .background {
+                        Rectangle()
+                            .fill(
+                                store.canResetCurrentTheme
+                                    ? BrutalEditorStyle.yellow
+                                    : BrutalEditorStyle.paper
+                            )
+                            .shadow(
+                                color: BrutalEditorStyle.ink,
+                                radius: 0,
+                                x: store.canResetCurrentTheme ? 2 : 0,
+                                y: store.canResetCurrentTheme ? 2 : 0
+                            )
+                    }
+                    .overlay {
+                        Rectangle()
+                            .strokeBorder(
+                                BrutalEditorStyle.ink,
+                                lineWidth: 1.5
+                            )
+                    }
+                    .opacity(store.canResetCurrentTheme ? 1 : 0.58)
                 }
-                .overlay {
-                    Rectangle()
-                        .strokeBorder(BrutalEditorStyle.ink, lineWidth: 1.5)
-                }
+                .buttonStyle(.plain)
+                .disabled(!store.canResetCurrentTheme)
+                .accessibilityIdentifier("appearance-reset-request")
+                .accessibilityHint(
+                    store.canResetCurrentTheme
+                        ? "打开当前主题的恢复确认"
+                        : "当前主题没有需要恢复的自定义设置"
+                )
             }
-            .buttonStyle(.plain)
-            .accessibilityHint("只重置 \(store.selectedTheme.displayName)，其他主题保持不变")
 
-            Text("只重置 \(store.selectedTheme.displayName)，另外两套主题的设置会保留。")
+            Text(
+                "只重置 \(store.selectedTheme.displayName)；另外两套主题和设置页字号会保留。"
+            )
                 .appearanceEditorFont(
                     size: 8,
                     weight: .bold,
@@ -693,6 +741,90 @@ struct AppearanceEditorView: View {
         }
         .padding(12)
         .padding(.bottom, 2)
+    }
+
+    private func resetConfirmationView(
+        for theme: AppearanceThemeID
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("确认恢复 \(theme.displayName)？")
+                .appearanceEditorFont(
+                    size: 9,
+                    weight: .black,
+                    design: .monospaced
+                )
+
+            Text("当前主题的颜色、面板和状态栏设置将恢复默认。")
+                .appearanceEditorFont(
+                    size: 8,
+                    weight: .bold,
+                    design: .monospaced
+                )
+                .opacity(0.68)
+
+            HStack(spacing: 8) {
+                Button(role: .destructive) {
+                    guard
+                        resetConfirmation.confirm(
+                            for: store.selectedTheme
+                        )
+                    else {
+                        return
+                    }
+                    store.resetCurrentTheme()
+                } label: {
+                    Text("确认恢复")
+                        .appearanceEditorFont(
+                            size: 8,
+                            weight: .black,
+                            design: .monospaced
+                        )
+                        .frame(maxWidth: .infinity)
+                        .appearanceEditorMinHeight(26)
+                        .background(BrutalEditorStyle.coral)
+                        .overlay {
+                            Rectangle()
+                                .strokeBorder(
+                                    BrutalEditorStyle.ink,
+                                    lineWidth: 1.5
+                                )
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("appearance-reset-confirm")
+
+                Button {
+                    resetConfirmation.cancel()
+                } label: {
+                    Text("取消")
+                        .appearanceEditorFont(
+                            size: 8,
+                            weight: .black,
+                            design: .monospaced
+                        )
+                        .frame(maxWidth: .infinity)
+                        .appearanceEditorMinHeight(26)
+                        .background(BrutalEditorStyle.paper)
+                        .overlay {
+                            Rectangle()
+                                .strokeBorder(
+                                    BrutalEditorStyle.ink,
+                                    lineWidth: 1.5
+                                )
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("appearance-reset-cancel")
+            }
+        }
+        .padding(9)
+        .background(BrutalEditorStyle.yellow.opacity(0.36))
+        .overlay {
+            Rectangle()
+                .strokeBorder(BrutalEditorStyle.ink, lineWidth: 1.5)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("appearance-reset-confirmation")
     }
 
     private func colorRow(

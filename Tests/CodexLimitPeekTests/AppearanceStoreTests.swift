@@ -201,6 +201,7 @@ struct AppearanceStoreTests {
     func resetOnlyChangesTheSelectedTheme() {
         let defaults = isolatedDefaults()
         let store = AppearanceStore(defaults: defaults)
+        store.setEditorFontScale(1.3)
         store.updateCurrent {
             $0.geometry.fontScale = 1.2
             $0.statusItemGeometry.fontSize = 13
@@ -222,6 +223,7 @@ struct AppearanceStoreTests {
         #expect(
             store.profile(for: .loud).statusItemGeometry.fontSize == 13
         )
+        #expect(store.editorFontScale == 1.3)
 
         store.flushPendingSave()
         let restored = AppearanceStore(defaults: defaults)
@@ -234,6 +236,41 @@ struct AppearanceStoreTests {
         #expect(
             restored.profile(for: .loud).statusItemGeometry.fontSize == 13
         )
+        #expect(restored.editorFontScale == 1.3)
+    }
+
+    @Test @MainActor
+    func canResetCurrentThemeTracksTheSelectedTheme() {
+        let defaults = isolatedDefaults()
+        let store = AppearanceStore(defaults: defaults)
+
+        #expect(!store.canResetCurrentTheme)
+
+        store.updateCurrent { $0.geometry.shadowDepth = 2 }
+        #expect(store.canResetCurrentTheme)
+
+        store.select(.bold)
+        #expect(!store.canResetCurrentTheme)
+
+        store.updateCurrent { $0.statusItemGeometry.fontSize = 8.5 }
+        #expect(store.canResetCurrentTheme)
+
+        store.select(.loud)
+        #expect(store.canResetCurrentTheme)
+    }
+
+    @Test @MainActor
+    func resettingAnAlreadyDefaultThemeIsANoOp() {
+        let defaults = isolatedDefaults()
+        let store = AppearanceStore(defaults: defaults)
+        let initialRevision = store.revision
+
+        store.resetCurrentTheme()
+
+        #expect(store.currentProfile == .default(for: .loud))
+        #expect(store.revision == initialRevision)
+        #expect(store.isSaved)
+        #expect(store.saveFeedbackState == .saved)
     }
 
     @Test @MainActor

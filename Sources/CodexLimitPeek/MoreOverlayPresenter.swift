@@ -131,9 +131,18 @@ enum MoreOverlayDismissalAction: Equatable {
 
 enum MoreOverlayDismissalPolicy {
     static func action(
-        for role: MoreOverlayClickRole
+        for role: MoreOverlayClickRole,
+        isColorEditingSessionActive: Bool = false
     ) -> MoreOverlayDismissalAction {
-        switch role {
+        if isColorEditingSessionActive {
+            switch role {
+            case .parentPanel, .otherApplicationWindow:
+                return .keep
+            default:
+                break
+            }
+        }
+        return switch role {
         case
             .anchor,
             .interaction,
@@ -346,6 +355,25 @@ final class MoreOverlayPresenter: ObservableObject {
         localEventMonitor != nil
     }
 
+    var isColorEditingSessionActive: Bool {
+        colorPanelCoordinator.activeContext != nil
+    }
+
+    var shouldDismissForGlobalOutsideClick: Bool {
+        dismissalAction(for: .otherApplicationWindow)
+            == .closeOverlay
+    }
+
+    func dismissalAction(
+        for role: MoreOverlayClickRole
+    ) -> MoreOverlayDismissalAction {
+        MoreOverlayDismissalPolicy.action(
+            for: role,
+            isColorEditingSessionActive:
+                isColorEditingSessionActive
+        )
+    }
+
     func attach(to parentWindow: NSPanel) {
         self.parentWindow = parentWindow
     }
@@ -372,7 +400,7 @@ final class MoreOverlayPresenter: ObservableObject {
         replaceInteractionRoot()
         updateRootsAndFrames()
         if parentWindow?.isVisible == true {
-            windowPair?.interaction.makeKeyAndOrderFront(nil)
+            windowPair?.interaction.makeKey()
             if let interactionHost {
                 windowPair?.interaction.makeFirstResponder(
                     interactionHost.view
@@ -657,18 +685,6 @@ final class MoreOverlayPresenter: ObservableObject {
                 display: true
             )
         }
-        pair.decoration.order(
-            .above,
-            relativeTo: parentWindow.windowNumber
-        )
-        pair.hitShield.order(
-            .above,
-            relativeTo: pair.decoration.windowNumber
-        )
-        pair.interaction.order(
-            .above,
-            relativeTo: pair.hitShield.windowNumber
-        )
     }
 
     private func installLocalEventMonitor() {
@@ -715,8 +731,7 @@ final class MoreOverlayPresenter: ObservableObject {
             ) {
                 return nil
             }
-            if MoreOverlayDismissalPolicy.action(for: role)
-                == .closeOverlay,
+            if dismissalAction(for: role) == .closeOverlay,
                 event.type != .scrollWheel
             {
                 close()

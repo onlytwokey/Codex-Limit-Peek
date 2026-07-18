@@ -81,4 +81,28 @@ struct AppDelegateLifecycleTests {
 
         #expect(delegate.moreOverlayPageForTesting == .actions)
     }
+
+    @Test @MainActor
+    func closingMainPanelKeepsShadowAttachedForReopen() throws {
+        let delegate = AppDelegate()
+        let panel = delegate.ensurePanelWindow()
+        let shadow = try #require(panel.childWindows?.first)
+        panel.orderFrontRegardless()
+        defer { panel.orderOut(nil) }
+
+        #expect(panel.isVisible)
+        #expect(shadow.isVisible)
+
+        delegate.closePanelForTesting()
+
+        #expect(!panel.isVisible)
+        #expect(!shadow.isVisible)
+        #expect(shadow.parent === panel)
+
+        panel.orderFrontRegardless()
+
+        #expect(panel.isVisible)
+        #expect(shadow.isVisible)
+        #expect(shadow.parent === panel)
+    }
 }

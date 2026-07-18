@@ -196,7 +196,8 @@ private struct ThemeQuotaCard: View {
                     .themeSurface(
                         appearance: appearance,
                         chrome: appearance.visuals.quotaCard,
-                        fill: appearance.surfaceColor
+                        fill: appearance.surfaceColor,
+                        rendersHardShadowExplicitly: true
                     )
             } else {
                 content
@@ -207,7 +208,8 @@ private struct ThemeQuotaCard: View {
                     .themeSurface(
                         appearance: appearance,
                         chrome: appearance.visuals.quotaCard,
-                        fill: appearance.surfaceColor
+                        fill: appearance.surfaceColor,
+                        rendersHardShadowExplicitly: true
                     )
             }
         }
@@ -431,19 +433,23 @@ struct ThemeSurfaceBackground: View {
     let chrome: ThemeChromeRecipe
     let fillStyle: ThemePanelFill
     let gradientEnd: AppearanceColor?
+    let rendersHardShadowExplicitly: Bool
 
     init(
         fill: AppearanceColor,
         outline: AppearanceColor,
         chrome: ThemeChromeRecipe,
         fillStyle: ThemePanelFill = .solid,
-        gradientEnd: AppearanceColor? = nil
+        gradientEnd: AppearanceColor? = nil,
+        rendersHardShadowExplicitly: Bool = false
     ) {
         self.fill = fill
         self.outline = outline
         self.chrome = chrome
         self.fillStyle = fillStyle
         self.gradientEnd = gradientEnd
+        self.rendersHardShadowExplicitly =
+            rendersHardShadowExplicitly
     }
 
     init(
@@ -451,14 +457,17 @@ struct ThemeSurfaceBackground: View {
         chrome: ThemeChromeRecipe,
         fill: AppearanceColor,
         fillStyle: ThemePanelFill = .solid,
-        gradientEnd: AppearanceColor? = nil
+        gradientEnd: AppearanceColor? = nil,
+        rendersHardShadowExplicitly: Bool = false
     ) {
         self.init(
             fill: fill,
             outline: appearance.outlineColor,
             chrome: chrome,
             fillStyle: fillStyle,
-            gradientEnd: gradientEnd
+            gradientEnd: gradientEnd,
+            rendersHardShadowExplicitly:
+                rendersHardShadowExplicitly
         )
     }
 
@@ -468,6 +477,39 @@ struct ThemeSurfaceBackground: View {
             style: .continuous
         )
 
+        // Resolve the surface first, then draw its hard shadow behind it.
+        // This keeps material fills unchanged and avoids a shadow-only
+        // compositor layer that can disappear when a transparent panel moves.
+        if
+            rendersHardShadowExplicitly,
+            case let .hard(depth, opacity) = chrome.shadow
+        {
+            ZStack {
+                surface(shape)
+
+                shape
+                    .fill(outline.swiftUIColor.opacity(opacity))
+                    .offset(
+                        x: CGFloat(depth),
+                        y: CGFloat(depth)
+                    )
+                    .blendMode(.destinationOver)
+            }
+            .compositingGroup()
+        } else {
+            surface(shape)
+                .modifier(
+                    ThemeShadowModifier(
+                        recipe: chrome.shadow,
+                        color: outline
+                    )
+                )
+        }
+    }
+
+    private func surface(
+        _ shape: RoundedRectangle
+    ) -> some View {
         ZStack {
             switch fillStyle {
             case .solid:
@@ -494,12 +536,6 @@ struct ThemeSurfaceBackground: View {
             }
         }
         .clipShape(shape)
-        .modifier(
-            ThemeShadowModifier(
-                recipe: chrome.shadow,
-                color: outline
-            )
-        )
     }
 }
 
@@ -509,7 +545,8 @@ extension View {
         chrome: ThemeChromeRecipe,
         fill: AppearanceColor,
         fillStyle: ThemePanelFill = .solid,
-        gradientEnd: AppearanceColor? = nil
+        gradientEnd: AppearanceColor? = nil,
+        rendersHardShadowExplicitly: Bool = false
     ) -> some View {
         background {
             ThemeSurfaceBackground(
@@ -517,7 +554,9 @@ extension View {
                 chrome: chrome,
                 fill: fill,
                 fillStyle: fillStyle,
-                gradientEnd: gradientEnd
+                gradientEnd: gradientEnd,
+                rendersHardShadowExplicitly:
+                    rendersHardShadowExplicitly
             )
         }
         .contentShape(
