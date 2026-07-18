@@ -1,6 +1,6 @@
 # Local-Only Documentation Rendering Design
 
-**Status:** Approved
+**Status:** Implemented and CI validated
 
 **Date:** 2026-07-18
 
@@ -125,3 +125,33 @@ The change is complete when:
 - `scripts/validate-doc-images.sh` passes
 - `scripts/test-install.sh` passes
 - the pushed GitHub Actions run passes through source installation
+
+## Validation Record
+
+Implementation commit `8f9fce0` passed GitHub Actions run
+[`29643416537`](https://github.com/onlytwokey/Codex-Limit-Peek/actions/runs/29643416537)
+on the `macos-15` runner. The completed job contained:
+
+1. shell syntax validation
+2. static documentation image validation
+3. Swift tests with `DocumentationPreviewRenderingTests` skipped
+4. source installation validation
+
+There was no documentation render or generated-image comparison step. All
+four steps passed, including source installation.
+
+Local static verification also passed:
+
+- `bash -n scripts/*.sh`
+- `scripts/validate-doc-images.sh`
+- Swift frontend parsing of both documentation test files
+- byte-for-byte comparison of the three moved test method bodies
+- workflow YAML parsing and render-invocation inspection
+
+A complete local Swift test and render run could not be repeated after the
+split because the installed Command Line Tools were mid-update: the Swift
+compiler and Testing framework reported version `6.3.2.1.108`, while the
+macOS 26.5 SDK reported `6.3.2.1.2`. The GitHub runner compiled the complete
+test target, including the local-only rendering suite, before successfully
+running the CI-selected tests. The local render command should be rerun after
+the Command Line Tools installation is internally consistent.
