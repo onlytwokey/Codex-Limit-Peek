@@ -1,6 +1,27 @@
 import Foundation
 import SwiftUI
 
+enum AppearanceEditorInitialScrollTarget: Hashable, Sendable {
+    case themeSelector
+    case statusItemControls
+}
+
+private struct AppearanceEditorInitialScrollTargetKey:
+    EnvironmentKey
+{
+    static let defaultValue:
+        AppearanceEditorInitialScrollTarget? = nil
+}
+
+extension EnvironmentValues {
+    var appearanceEditorInitialScrollTarget:
+        AppearanceEditorInitialScrollTarget?
+    {
+        get { self[AppearanceEditorInitialScrollTargetKey.self] }
+        set { self[AppearanceEditorInitialScrollTargetKey.self] = newValue }
+    }
+}
+
 private enum BrutalEditorStyle {
     static var ink: Color {
         AppearanceColor(hex: 0x171717).swiftUIColor
@@ -144,6 +165,8 @@ struct AppearanceEditorView: View {
     let onStateColors: () -> Void
     let onOpenCustomColor: (AppearanceColorToken) -> Void
 
+    @Environment(\.appearanceEditorInitialScrollTarget)
+    private var initialScrollTarget
     @State private var showsResetConfirmation = false
 
     init(
@@ -174,7 +197,8 @@ struct AppearanceEditorView: View {
         VStack(spacing: 0) {
             header
 
-            ScrollView {
+            ScrollViewReader { proxy in
+                ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     AppearanceLivePreview(profile: store.currentProfile)
                         .padding(12)
@@ -183,6 +207,10 @@ struct AppearanceEditorView: View {
                     themeSelector
                         .padding(12)
                         .brutalSectionDivider()
+                        .id(
+                            AppearanceEditorInitialScrollTarget
+                                .themeSelector
+                        )
 
                     AppearanceEditorSection(
                         appearance: resolvedAppearance,
@@ -232,9 +260,20 @@ struct AppearanceEditorView: View {
                     stateColorsSection
                     resetSection
                 }
+                }
+                .scrollIndicators(.visible, axes: .vertical)
+                .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+                .task(id: initialScrollTarget) {
+                    guard initialScrollTarget == .themeSelector else {
+                        return
+                    }
+                    await Task.yield()
+                    proxy.scrollTo(
+                        AppearanceEditorInitialScrollTarget.themeSelector,
+                        anchor: .top
+                    )
+                }
             }
-            .scrollIndicators(.visible, axes: .vertical)
-            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
         }
         .frame(width: 320, height: 548)
         .environment(
@@ -844,6 +883,9 @@ struct StatusItemEditorView: View {
     @ObservedObject var store: AppearanceStore
     let onBack: () -> Void
 
+    @Environment(\.appearanceEditorInitialScrollTarget)
+    private var initialScrollTarget
+
     private var panelAppearance: ResolvedPanelAppearance {
         AppearanceResolver.panel(
             profile: store.currentProfile,
@@ -869,7 +911,8 @@ struct StatusItemEditorView: View {
         VStack(spacing: 0) {
             header
 
-            ScrollView {
+            ScrollViewReader { proxy in
+                ScrollView {
                 VStack(
                     alignment: .leading,
                     spacing: 0
@@ -943,6 +986,10 @@ struct StatusItemEditorView: View {
                             }
                         }
                     }
+                    .id(
+                        AppearanceEditorInitialScrollTarget
+                            .statusItemControls
+                    )
 
                     Text(
                         "最终尺寸会根据系统菜单栏高度自动适配"
@@ -961,15 +1008,27 @@ struct StatusItemEditorView: View {
                         BrutalEditorStyle.paleTeal
                     )
                 }
+                }
+                .scrollIndicators(
+                    .visible,
+                    axes: .vertical
+                )
+                .scrollBounceBehavior(
+                    .basedOnSize,
+                    axes: .vertical
+                )
+                .task(id: initialScrollTarget) {
+                    guard initialScrollTarget == .statusItemControls else {
+                        return
+                    }
+                    await Task.yield()
+                    proxy.scrollTo(
+                        AppearanceEditorInitialScrollTarget
+                            .statusItemControls,
+                        anchor: .top
+                    )
+                }
             }
-            .scrollIndicators(
-                .visible,
-                axes: .vertical
-            )
-            .scrollBounceBehavior(
-                .basedOnSize,
-                axes: .vertical
-            )
         }
         .frame(
             width: MoreOverlayMetrics.statusItemSize.width,

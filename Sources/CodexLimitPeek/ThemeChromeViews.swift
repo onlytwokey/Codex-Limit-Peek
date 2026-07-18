@@ -1,6 +1,17 @@
 import AppKit
 import SwiftUI
 
+private struct ThemeStatusBarThicknessOverrideKey: EnvironmentKey {
+    static let defaultValue: CGFloat? = nil
+}
+
+extension EnvironmentValues {
+    var themeStatusBarThicknessOverride: CGFloat? {
+        get { self[ThemeStatusBarThicknessOverrideKey.self] }
+        set { self[ThemeStatusBarThicknessOverrideKey.self] = newValue }
+    }
+}
+
 extension ThemeFontWeight {
     var swiftUIFontWeight: Font.Weight {
         switch self {
@@ -625,6 +636,15 @@ struct ThemeProgressBar: View {
 
 struct ThemePanelChromePreview: View {
     let appearance: ResolvedPanelAppearance
+    let data: ThemePanelDisplayData
+
+    init(
+        appearance: ResolvedPanelAppearance,
+        data: ThemePanelDisplayData? = nil
+    ) {
+        self.appearance = appearance
+        self.data = data ?? .reference(for: appearance.themeID)
+    }
 
     private var shadowInsets: EdgeInsets {
         appearance.visuals.panelShell.shadow.visualInsets
@@ -633,7 +653,7 @@ struct ThemePanelChromePreview: View {
     var body: some View {
         ThemePanelComposition(
             appearance: appearance,
-            data: .reference(for: appearance.themeID),
+            data: data,
             headerForeground: appearance.backgroundTextColor.swiftUIColor
         ) {
             HStack(spacing: 8) {
@@ -678,7 +698,18 @@ struct ThemePanelChromePreview: View {
 
 struct ScaledThemePanelChromePreview: View {
     let appearance: ResolvedPanelAppearance
+    let data: ThemePanelDisplayData
     let targetWidth: CGFloat
+
+    init(
+        appearance: ResolvedPanelAppearance,
+        data: ThemePanelDisplayData? = nil,
+        targetWidth: CGFloat
+    ) {
+        self.appearance = appearance
+        self.data = data ?? .reference(for: appearance.themeID)
+        self.targetWidth = targetWidth
+    }
 
     private var shadowInsets: EdgeInsets {
         appearance.visuals.panelShell.shadow.visualInsets
@@ -701,7 +732,10 @@ struct ScaledThemePanelChromePreview: View {
     }
 
     var body: some View {
-        ThemePanelChromePreview(appearance: appearance)
+        ThemePanelChromePreview(
+            appearance: appearance,
+            data: data
+        )
             .scaleEffect(scale, anchor: .topLeading)
             .frame(
                 width: naturalWidth * scale,
@@ -714,8 +748,16 @@ struct ScaledThemePanelChromePreview: View {
 struct ThemeStatusChromePreview: View {
     let appearance: ResolvedStatusItemAppearance
 
+    @Environment(\.themeStatusBarThicknessOverride)
+    private var statusBarThicknessOverride
+
     private var fittedAppearance: ResolvedStatusItemAppearance {
-        appearance.fitted(to: Double(NSStatusBar.system.thickness))
+        appearance.fitted(
+            to: Double(
+                statusBarThicknessOverride
+                    ?? NSStatusBar.system.thickness
+            )
+        )
     }
 
     private var chrome: ThemeChromeRecipe {
