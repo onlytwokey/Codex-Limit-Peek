@@ -101,4 +101,24 @@ settings_bytes="$(stat -f '%z' "$SETTINGS")"
 (( panel_bytes + settings_bytes <= MAX_TOTAL_BYTES )) \
   || fail "documentation images exceed 5 MiB combined"
 
+README="$ROOT_DIR/README.md"
+required_references=(
+  '<img src="docs/images/panel-preview.png" alt="LOUD、BOLD、FROST 三套主题的状态栏显示层与额度面板预览" width="860">'
+  '<img src="docs/images/appearance-settings-loud.png" alt="LOUD 主题的主外观设置页与状态栏显示层设置页" width="720">'
+  '![Codex Limit Peek 用量颜色状态](docs/images/quota-states.svg)'
+  '![Codex Limit Peek 刷新健康状态](docs/images/refresh-states.svg)'
+)
+
+for reference in "${required_references[@]}"; do
+  grep -Fq "$reference" "$README" \
+    || fail "README is missing image reference: $reference"
+done
+
+for asset in \
+  "$ROOT_DIR/docs/images/quota-states.svg" \
+  "$ROOT_DIR/docs/images/refresh-states.svg"; do
+  [[ -f "$asset" ]] \
+    || fail "missing documentation image: $asset"
+done
+
 echo "documentation image checks passed"

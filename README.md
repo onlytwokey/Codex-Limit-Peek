@@ -27,7 +27,23 @@ Codex Limit Peek 基于上游项目
 
 ## 界面预览
 
-![Codex Limit Peek 面板预览](docs/images/panel-preview.png)
+<p align="center">
+  <img src="docs/images/panel-preview.png" alt="LOUD、BOLD、FROST 三套主题的状态栏显示层与额度面板预览" width="860">
+</p>
+
+- **LOUD：** 高饱和、粗描边与硬阴影，信息层级最直接。
+- **BOLD：** 克制配色、细描边与结构化几何，强调紧凑和秩序。
+- **FROST：** 半透明材质、柔和几何与强调色对比，更接近轻盈的 macOS 质感。
+
+三套主题都会独立记忆面板与状态栏显示层的颜色和几何参数。
+
+### 外观设置
+
+<p align="center">
+  <img src="docs/images/appearance-settings-loud.png" alt="LOUD 主题的主外观设置页与状态栏显示层设置页" width="720">
+</p>
+
+以 LOUD 为例，“更多 → 外观”可以分别调整主题的基础色板、状态颜色和面板几何；方形“＋”按钮会打开支持透明度的 macOS 系统取色面板。面板与状态栏显示层拥有彼此独立的字体、描边、圆角、阴影和尺寸参数，并按主题分别保存；设置页字体大小则作为全局选项独立调整。
 
 双窗口可用时，菜单栏状态会跟随 5 小时剩余额度变色：
 
