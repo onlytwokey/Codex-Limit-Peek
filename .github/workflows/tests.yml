@@ -22,8 +22,6 @@ jobs:
       - name: Validate documentation images
         run: scripts/validate-doc-images.sh
       - name: Run Swift tests
-        run: scripts/test.sh
-      - name: Verify documentation render determinism
-        run: scripts/render-doc-previews.sh --check
+        run: scripts/test.sh --skip DocumentationPreviewRenderingTests
       - name: Test source installation
         run: scripts/test-install.sh

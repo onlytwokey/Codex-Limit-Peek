@@ -99,7 +99,7 @@ render_into() {
 
   CODEX_LIMIT_PEEK_DOC_PREVIEW_OUTPUT_DIR="$output_dir" \
     "$ROOT_DIR/scripts/test.sh" \
-    --filter DocumentationPreviewRendererTests.rendersApprovedAssets
+    --filter DocumentationPreviewRenderingTests.rendersApprovedAssets
 }
 
 validate_directory() {

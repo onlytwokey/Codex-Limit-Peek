@@ -240,6 +240,10 @@ app-server 不可用时，应用会检查以下本地来源：
 ./scripts/validate-doc-images.sh
 ```
 
+图片生成只在本地贡献流程中运行；GitHub Actions 不启动 SwiftUI/AppKit
+文档渲染器。CI 会继续检查已提交 PNG 的尺寸、DPI、sRGB、文件大小和
+README 引用。
+
 开发构建会保留 `.build` 增量缓存；面向最终用户的安装流程始终把 SwiftPM 编译缓存放在系统临时 scratch 目录并在结束时清理。
 
 ```text
