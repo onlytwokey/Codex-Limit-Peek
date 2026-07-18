@@ -4,7 +4,7 @@
 
 **Goal:** Replace the remaining legacy README diagrams with deterministic LOUD renders of production UI, expand the appearance screenshot into a complete 2×2 atlas, and reorganize README content around product behavior before appearance customization.
 
-**Architecture:** Keep runtime behavior unchanged and add three read-only documentation seams: reference-date quota formatting, a fixed status-bar thickness accepted by `CompactStatusItemView.update`, and a `.panelControls` initial scroll target for the existing appearance editor. The test-only renderer composes external LOUD documentation cards around the real `CompactStatusItemView` and existing overlay pages, writes all four PNG assets in one batch, and relies on the existing transactional shell installer to replace the repository asset set atomically.
+**Architecture:** Keep runtime behavior unchanged and add read-only documentation seams for reference-date quota formatting, a fixed status-bar thickness accepted by `CompactStatusItemView.update`, and initial scroll targets for existing long editor sections. The test-only renderer composes external LOUD documentation cards around the real `CompactStatusItemView` and existing overlay pages, writes all four PNG assets in one batch, and relies on the transactional shell installer to replace the repository asset set atomically.
 
 **Tech Stack:** Swift 6, SwiftUI, AppKit, Swift Testing, ImageIO, Bash, `sips`, GitHub Actions.
 
@@ -15,9 +15,9 @@
 - Modify `Sources/CodexLimitPeek/CodexLimitPeekApp.swift`
   - Let documentation rendering format quota text against a fixed reference date and inject a fixed status-bar thickness while preserving current runtime defaults.
 - Modify `Sources/CodexLimitPeek/AppearanceEditorView.swift`
-  - Add the documentation-only `.panelControls` scroll anchor and keep all ordinary editor behavior unchanged.
+  - Add documentation-only `.panelControls` and `.stateColorControls` scroll anchors and keep all ordinary editor behavior unchanged.
 - Modify `Tests/CodexLimitPeekTests/DocumentationPreviewSeamTests.swift`
-  - Lock down both documentation seams and their default-off behavior.
+  - Lock down the documentation seams and their default-off behavior.
 - Modify `Tests/CodexLimitPeekTests/DocumentationPreviewRenderer.swift`
   - Define fixed synthetic snapshots, render production menu-bar status items, build both LOUD state matrices, and render the four-cell appearance atlas.
 - Modify `Tests/CodexLimitPeekTests/DocumentationPreviewRendererTests.swift`
@@ -215,6 +215,7 @@ enum AppearanceEditorInitialScrollTarget: Hashable, Sendable {
     case themeSelector
     case panelControls
     case statusItemControls
+    case stateColorControls
 }
 ```
 
@@ -234,10 +235,10 @@ editor task to scroll to either supported appearance-page target:
 }
 ```
 
-Return one page height for `.panelControls` and `.statusItemControls`, and zero
-for `nil` or `.themeSelector`. Inject the clear trailing spacer only when a
-documentation target needs it, so either control section can align with the top
-without changing normal application content.
+Return one page height for `.panelControls`, `.statusItemControls`, and
+`.stateColorControls`, and zero for `nil` or `.themeSelector`. Inject the clear
+trailing spacer only when a documentation target needs it, so each long control
+section can align with the top without changing normal application content.
 
 - [ ] **Step 6: Run focused tests and verify success**
 
@@ -287,9 +288,9 @@ Define tests for the approved fixture collection:
     DocumentationPreviewRenderer.refreshFixtures
         .map(\.displayText)
         == [
-            "61% | 3h08m | 74%",
-            "61% | 3h08m | 74%",
-            "61% | 3h08m | 74%",
+            "61% | 3h8m | 74%",
+            "61% | 3h8m | 74%",
+            "61% | 3h8m | 74%",
             "5d22h | 69%",
             "5d22h | 69%",
             "5d22h | 69%"
@@ -448,7 +449,7 @@ Render these real overlay pages:
     (.appearance, .themeSelector, "主题与基础色板"),
     (.appearance, .panelControls, "面板字形、几何、阴影与材质"),
     (.statusItem, .statusItemControls, "状态栏显示层"),
-    (.stateColors, nil, "高级状态颜色")
+    (.stateColors, .stateColorControls, "高级状态颜色")
 ]
 ```
 

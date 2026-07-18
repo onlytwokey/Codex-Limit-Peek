@@ -5,6 +5,7 @@ enum AppearanceEditorInitialScrollTarget: Hashable, Sendable {
     case themeSelector
     case panelControls
     case statusItemControls
+    case stateColorControls
 }
 
 enum AppearanceEditorDocumentationMetrics {
@@ -14,6 +15,8 @@ enum AppearanceEditorDocumentationMetrics {
         switch target {
         case .panelControls, .statusItemControls:
             MoreOverlayMetrics.statusItemSize.height
+        case .stateColorControls:
+            MoreOverlayMetrics.stateColorsSize.height
         case nil, .themeSelector:
             0
         }
@@ -737,6 +740,9 @@ struct StateColorsEditorView: View {
     let onBack: () -> Void
     let onOpenCustomColor: (AppearanceColorToken) -> Void
 
+    @Environment(\.appearanceEditorInitialScrollTarget)
+    private var initialScrollTarget
+
     private var resolvedAppearance: ResolvedPanelAppearance {
         AppearanceResolver.panel(
             profile: store.currentProfile,
@@ -750,74 +756,103 @@ struct StateColorsEditorView: View {
         VStack(spacing: 0) {
             header
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text("主题")
-                            .appearanceEditorFont(
-                                size: 9,
-                                weight: .black,
-                                design: .monospaced
-                            )
-                            .tracking(0.8)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text("主题")
+                                .appearanceEditorFont(
+                                    size: 9,
+                                    weight: .black,
+                                    design: .monospaced
+                                )
+                                .tracking(0.8)
 
-                        HStack(spacing: 8) {
-                            ForEach(
-                                AppearanceThemeID.allCases,
-                                id: \.self
-                            ) { theme in
-                                ThemeChoiceButton(
-                                    theme: theme,
-                                    profile: store.profile(for: theme),
-                                    isSelected: store.selectedTheme == theme
-                                ) {
-                                    withAnimation(.easeOut(duration: 0.14)) {
-                                        store.select(theme)
+                            HStack(spacing: 8) {
+                                ForEach(
+                                    AppearanceThemeID.allCases,
+                                    id: \.self
+                                ) { theme in
+                                    ThemeChoiceButton(
+                                        theme: theme,
+                                        profile: store.profile(for: theme),
+                                        isSelected: store.selectedTheme == theme
+                                    ) {
+                                        withAnimation(.easeOut(duration: 0.14)) {
+                                            store.select(theme)
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    .padding(12)
-                    .brutalSectionDivider()
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("选择要编辑状态颜色的主题")
-
-                    Text("每套主题分别保存；正常、警告、危险的额度阈值保持不变。")
-                        .appearanceEditorFont(
-                            size: 9,
-                            weight: .bold,
-                            design: .monospaced
-                        )
-                        .opacity(0.64)
                         .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(BrutalEditorStyle.paleTeal)
                         .brutalSectionDivider()
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel("选择要编辑状态颜色的主题")
 
-                    AppearanceEditorSection(
-                        appearance: resolvedAppearance,
-                        title: "额度与失败状态",
-                        subtitle: "状态栏会自动保证文字对比度"
-                    ) {
-                        VStack(spacing: 10) {
-                            colorRow(title: "正常", token: .normal)
-                            colorRow(title: "警告", token: .warning)
-                            colorRow(title: "危险", token: .danger)
-                            colorRow(
-                                title: "不可用底色",
-                                token: .unavailableBase
+                        Text("每套主题分别保存；正常、警告、危险的额度阈值保持不变。")
+                            .appearanceEditorFont(
+                                size: 9,
+                                weight: .bold,
+                                design: .monospaced
                             )
-                            colorRow(
-                                title: "不可用条纹",
-                                token: .unavailableStripe
-                            )
+                            .opacity(0.64)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(BrutalEditorStyle.paleTeal)
+                            .brutalSectionDivider()
+
+                        AppearanceEditorSection(
+                            appearance: resolvedAppearance,
+                            title: "额度与失败状态",
+                            subtitle: "状态栏会自动保证文字对比度"
+                        ) {
+                            VStack(spacing: 10) {
+                                colorRow(title: "正常", token: .normal)
+                                colorRow(title: "警告", token: .warning)
+                                colorRow(title: "危险", token: .danger)
+                                colorRow(
+                                    title: "不可用底色",
+                                    token: .unavailableBase
+                                )
+                                colorRow(
+                                    title: "不可用条纹",
+                                    token: .unavailableStripe
+                                )
+                            }
+                        }
+                        .id(
+                            AppearanceEditorInitialScrollTarget
+                                .stateColorControls
+                        )
+
+                        if initialScrollTarget == .stateColorControls {
+                            Color.clear
+                                .frame(
+                                    height:
+                                        AppearanceEditorDocumentationMetrics
+                                            .trailingScrollSpace(
+                                                for: initialScrollTarget
+                                            )
+                                )
+                                .accessibilityHidden(true)
                         }
                     }
                 }
+                .scrollIndicators(.visible, axes: .vertical)
+                .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+                .task(id: initialScrollTarget) {
+                    guard initialScrollTarget == .stateColorControls else {
+                        return
+                    }
+                    await Task.yield()
+                    proxy.scrollTo(
+                        AppearanceEditorInitialScrollTarget
+                            .stateColorControls,
+                        anchor: .top
+                    )
+                }
             }
-            .scrollIndicators(.visible, axes: .vertical)
-            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
         }
         .frame(width: 320, height: 430)
         .environment(

@@ -86,5 +86,10 @@ struct DocumentationPreviewSeamTests {
                 for: .statusItemControls
             ) == MoreOverlayMetrics.statusItemSize.height
         )
+        #expect(
+            AppearanceEditorDocumentationMetrics.trailingScrollSpace(
+                for: .stateColorControls
+            ) == MoreOverlayMetrics.stateColorsSize.height
+        )
     }
 }

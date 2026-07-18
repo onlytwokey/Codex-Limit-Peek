@@ -21,6 +21,187 @@ struct DocumentationPreviewRendererTests {
     }
 
     @Test @MainActor
+    func approvedStatusFixturesMatchTheSpec() {
+        #expect(
+            DocumentationPreviewRenderer.quotaFixtures
+                .map(\.displayText)
+                == [
+                    "74% | 3h29m | 82%",
+                    "39% | 1h42m | 74%",
+                    "12% | 35m | 61%"
+                ]
+        )
+        #expect(
+            DocumentationPreviewRenderer.refreshFixtures
+                .map(\.displayText)
+                == [
+                    "61% | 3h8m | 74%",
+                    "61% | 3h8m | 74%",
+                    "61% | 3h8m | 74%",
+                    "5d22h | 69%",
+                    "5d22h | 69%",
+                    "5d22h | 69%"
+                ]
+        )
+        #expect(
+            DocumentationPreviewRenderer.refreshFixtures
+                .map(\.health)
+                == [
+                    .live,
+                    .confirmingFailure,
+                    .degraded,
+                    .live,
+                    .confirmingFailure,
+                    .degraded
+                ]
+        )
+
+        let productionFills = DocumentationPreviewRenderer
+            .quotaFixtures
+            .map { fixture in
+                AppearanceResolver.status(
+                    profile: .default(for: .loud),
+                    primaryRemainingPercent:
+                        fixture.snapshot.remainingPercent,
+                    weeklyRemainingPercent:
+                        fixture.snapshot.weeklyRemainingPercent,
+                    isUnavailable:
+                        fixture.snapshot.isUnavailable,
+                    showsFailurePattern:
+                        fixture.health.showsFailurePattern
+                )
+                .fillColor
+            }
+        #expect(Set(productionFills).count == 3)
+    }
+
+    @Test @MainActor
+    func settingsAtlasUsesTheApprovedProductionPages() {
+        let cells = DocumentationPreviewRenderer.settingsCells
+
+        #expect(
+            cells.map(\.title)
+                == [
+                    "主题与基础色板",
+                    "面板字形、几何、阴影与材质",
+                    "状态栏显示层",
+                    "高级状态颜色"
+                ]
+        )
+        #expect(
+            cells.map(\.page)
+                == [
+                    .appearance,
+                    .appearance,
+                    .statusItem,
+                    .stateColors
+                ]
+        )
+        #expect(
+            cells.map(\.scrollTarget)
+                == [
+                    .themeSelector,
+                    .panelControls,
+                    .statusItemControls,
+                    .stateColorControls
+                ]
+        )
+        for cell in cells {
+            #expect(cell.page.fixedSize != nil)
+        }
+    }
+
+    @Test @MainActor
+    func productionStatusViewKeepsQuotaTextAcrossRefreshHealth() async throws {
+        let fixture = try #require(
+            DocumentationPreviewRenderer.refreshFixtures.first
+        )
+        let live = try await DocumentationPreviewRenderer
+            .renderStatusItemForTesting(
+                snapshot: fixture.snapshot,
+                health: .live,
+                referenceDate: fixture.referenceDate
+            )
+        let confirming = try await DocumentationPreviewRenderer
+            .renderStatusItemForTesting(
+                snapshot: fixture.snapshot,
+                health: .confirmingFailure,
+                referenceDate: fixture.referenceDate
+            )
+        let confirmed = try await DocumentationPreviewRenderer
+            .renderStatusItemForTesting(
+                snapshot: fixture.snapshot,
+                health: .degraded,
+                referenceDate: fixture.referenceDate
+            )
+
+        #expect(live == confirming)
+        #expect(live != confirmed)
+
+        let accessibilityValues = [
+            RefreshHealth.live,
+            .confirmingFailure,
+            .degraded
+        ].map { health in
+            DocumentationPreviewRenderer
+                .makeStatusItemViewForTesting(
+                    snapshot: fixture.snapshot,
+                    health: health,
+                    referenceDate: fixture.referenceDate
+                )
+                .accessibilityValue() as? String
+        }
+        #expect(
+            accessibilityValues
+                == [
+                    fixture.displayText,
+                    fixture.displayText,
+                    fixture.displayText
+                ]
+        )
+
+        var changedSnapshot = fixture.snapshot
+        changedSnapshot.resetDate = changedSnapshot.resetDate
+            .addingTimeInterval(60)
+        let changedText = try await DocumentationPreviewRenderer
+            .renderStatusItemForTesting(
+                snapshot: changedSnapshot,
+                health: .live,
+                referenceDate: fixture.referenceDate
+            )
+        #expect(live != changedText)
+
+        var quotaStatePixels: [Data] = []
+        for quotaFixture in DocumentationPreviewRenderer
+            .quotaFixtures
+        {
+            quotaStatePixels.append(
+                try await DocumentationPreviewRenderer
+                    .renderStatusItemForTesting(
+                        snapshot: quotaFixture.snapshot,
+                        health: quotaFixture.health,
+                        referenceDate:
+                            quotaFixture.referenceDate
+                    )
+            )
+        }
+        #expect(Set(quotaStatePixels).count == 3)
+
+        let weeklyFixture = try #require(
+            DocumentationPreviewRenderer.refreshFixtures
+                .dropFirst(3)
+                .first
+        )
+        let weekly = try await DocumentationPreviewRenderer
+            .renderStatusItemForTesting(
+                snapshot: weeklyFixture.snapshot,
+                health: weeklyFixture.health,
+                referenceDate: weeklyFixture.referenceDate
+            )
+        #expect(live != weekly)
+    }
+
+    @Test @MainActor
     func isolatedStoreUsesOnlyApprovedDefaults() throws {
         let standard = UserDefaults.standard
         let standardThemeBefore = standard.string(
@@ -163,7 +344,9 @@ struct DocumentationPreviewRendererTests {
             first.map(\.lastPathComponent).sorted()
                 == [
                     "appearance-settings-loud.png",
-                    "panel-preview.png"
+                    "panel-preview.png",
+                    "quota-states-loud.png",
+                    "refresh-states-loud.png"
                 ]
         )
         #expect(
@@ -173,7 +356,9 @@ struct DocumentationPreviewRendererTests {
 
         let approved: [String: (Int, Int)] = [
             "panel-preview.png": (2_400, 900),
-            "appearance-settings-loud.png": (1_440, 1_200)
+            "quota-states-loud.png": (1_840, 720),
+            "refresh-states-loud.png": (1_840, 1_350),
+            "appearance-settings-loud.png": (1_440, 2_400)
         ]
         var combinedBytes = 0
 
@@ -232,24 +417,41 @@ struct DocumentationPreviewRendererTests {
         #expect(baselineTheme != alternateFixture)
         #expect(baselineTheme != alternateThickness)
 
-        let anchoredSettings = try await DocumentationPreviewRenderer
-            .renderSettingsPreviewForTesting(
-                appearanceScrollTarget: .themeSelector,
-                statusScrollTarget: .statusItemControls
+        let themeSelector = try await DocumentationPreviewRenderer
+            .renderOverlayPageForTesting(
+                page: .appearance,
+                scrollTarget: .themeSelector
             )
-        let appearanceAtDefault = try await DocumentationPreviewRenderer
-            .renderSettingsPreviewForTesting(
-                appearanceScrollTarget: nil,
-                statusScrollTarget: .statusItemControls
+        let panelControls = try await DocumentationPreviewRenderer
+            .renderOverlayPageForTesting(
+                page: .appearance,
+                scrollTarget: .panelControls
+            )
+        let statusControls = try await DocumentationPreviewRenderer
+            .renderOverlayPageForTesting(
+                page: .statusItem,
+                scrollTarget: .statusItemControls
             )
         let statusAtDefault = try await DocumentationPreviewRenderer
-            .renderSettingsPreviewForTesting(
-                appearanceScrollTarget: .themeSelector,
-                statusScrollTarget: nil
+            .renderOverlayPageForTesting(
+                page: .statusItem,
+                scrollTarget: nil
+            )
+        let stateColors = try await DocumentationPreviewRenderer
+            .renderOverlayPageForTesting(
+                page: .stateColors,
+                scrollTarget: .stateColorControls
+            )
+        let stateColorsAtDefault = try await DocumentationPreviewRenderer
+            .renderOverlayPageForTesting(
+                page: .stateColors,
+                scrollTarget: nil
             )
 
-        #expect(anchoredSettings != appearanceAtDefault)
-        #expect(anchoredSettings != statusAtDefault)
+        #expect(themeSelector != panelControls)
+        #expect(statusControls != statusAtDefault)
+        #expect(statusControls != stateColors)
+        #expect(stateColors != stateColorsAtDefault)
         #expect(
             try DocumentationPreviewRenderer
                 .preferenceArtifactsForTesting()

@@ -92,6 +92,10 @@ The production view remains responsible for:
 
 The documentation renderer must not duplicate these rules.
 
+Labels may explain each resolved state outside the production status item.
+They must not add unlabeled marks that could be mistaken for part of the
+application's menu-bar UI.
+
 ### 4.2 Appearance-editor rendering
 
 The settings atlas renders the existing:
@@ -104,6 +108,9 @@ The settings atlas renders the existing:
 
 Documentation-only seams may select a page and initial scroll target. Their
 default values must preserve normal application behavior.
+
+The state-color target must expose all five existing rows: normal, warning,
+danger, unavailable base, and unavailable stripe.
 
 ### 4.3 Logic ownership
 
@@ -146,7 +153,7 @@ The figure contains both supported display modes.
 Dual-window text:
 
 ```text
-61% | 3h08m | 74%
+61% | 3h8m | 74%
 ```
 
 Weekly-only text:
