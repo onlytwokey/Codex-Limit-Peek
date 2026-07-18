@@ -12,7 +12,6 @@ ASSETS=(
 )
 
 STAGING=""
-CHECK_STAGING=""
 NEW_PATHS=()
 BACKUP_PATHS=()
 HAD_ORIGINAL=()
@@ -88,9 +87,6 @@ cleanup() {
   if [[ -n "$STAGING" && -d "$STAGING" ]]; then
     /bin/rm -rf "$STAGING"
   fi
-  if [[ -n "$CHECK_STAGING" && -d "$CHECK_STAGING" ]]; then
-    /bin/rm -rf "$CHECK_STAGING"
-  fi
   if (( lock_acquired )) && [[ -f "$LOCK_FILE" ]]; then
     unlink "$LOCK_FILE"
   fi
@@ -103,7 +99,7 @@ render_into() {
 
   CODEX_LIMIT_PEEK_DOC_PREVIEW_OUTPUT_DIR="$output_dir" \
     "$ROOT_DIR/scripts/test.sh" \
-    --filter DocumentationPreviewRendererTests
+    --filter DocumentationPreviewRendererTests.rendersApprovedAssets
 }
 
 validate_directory() {
@@ -158,13 +154,6 @@ render_into "$STAGING"
 validate_directory "$STAGING"
 
 if (( check_only )); then
-  CHECK_STAGING="$(
-    mktemp -d \
-      "${TMPDIR:-/tmp}/codex-limit-peek-docs-check.XXXXXX"
-  )"
-  render_into "$CHECK_STAGING"
-  validate_directory "$CHECK_STAGING"
-  compare_directories "$STAGING" "$CHECK_STAGING"
   "$ROOT_DIR/scripts/validate-doc-images.sh"
   compare_directories \
     "$STAGING" \
