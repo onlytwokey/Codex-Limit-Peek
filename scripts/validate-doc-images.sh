@@ -47,6 +47,23 @@ fail() {
   exit 1
 }
 
+count_literal_occurrences() {
+  local needle="$1"
+  local path="$2"
+
+  awk -v needle="$needle" '
+    BEGIN { count = 0 }
+    {
+      line = $0
+      while ((position = index(line, needle)) > 0) {
+        count += 1
+        line = substr(line, position + length(needle))
+      }
+    }
+    END { print count }
+  ' "$path"
+}
+
 check_dpi() {
   local dpi="$1"
   local axis="$2"
@@ -136,7 +153,7 @@ if (( check_repository_contract )); then
 
   for reference in "${required_references[@]}"; do
     reference_count="$(
-      grep -Fc "$reference" "$README" || true
+      count_literal_occurrences "$reference" "$README"
     )"
     [[ "$reference_count" == "1" ]] \
       || fail \

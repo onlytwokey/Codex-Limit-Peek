@@ -4,7 +4,7 @@
 
 **Goal:** Replace the remaining legacy README diagrams with deterministic LOUD renders of production UI, expand the appearance screenshot into a complete 2×2 atlas, and reorganize README content around product behavior before appearance customization.
 
-**Architecture:** Keep runtime behavior unchanged and add read-only documentation seams for reference-date quota formatting, a fixed status-bar thickness accepted by `CompactStatusItemView.update`, and initial scroll targets for existing long editor sections. The test-only renderer composes external LOUD documentation cards around the real `CompactStatusItemView` and existing overlay pages, writes all four PNG assets in one batch, and relies on the transactional shell installer to replace the repository asset set atomically.
+**Architecture:** Keep runtime behavior unchanged and add read-only documentation seams for reference-date quota formatting, a fixed status-bar thickness accepted by `CompactStatusItemView.update`, and initial scroll targets for existing long editor sections. The test-only renderer composes external LOUD documentation cards around the real `CompactStatusItemView` and existing overlay pages, writes all four PNG assets in one batch, and relies on the rollback-protected shell installer to replace and validate the complete repository asset set.
 
 **Tech Stack:** Swift 6, SwiftUI, AppKit, Swift Testing, ImageIO, Bash, `sips`, GitHub Actions.
 
@@ -23,7 +23,7 @@
 - Modify `Tests/CodexLimitPeekTests/DocumentationPreviewRendererTests.swift`
   - Test exact fixture text, production rendering behavior, failure semantics, dimensions, metadata, isolation, and repeatability.
 - Modify `scripts/render-doc-previews.sh`
-  - Transactionally stage, back up, replace, compare, and roll back all four README PNGs.
+  - Stage, back up, replace, compare, and roll back all four README PNGs under one install lock.
 - Modify `scripts/validate-doc-images.sh`
   - Validate the four-file asset contract, new README references, size budgets, and removal of legacy SVG references.
 - Modify `README.md`
@@ -491,7 +491,7 @@ git add \
 git commit -m "test: render LOUD README visuals"
 ```
 
-### Task 3: Expand transactional asset installation and validation
+### Task 3: Expand rollback-protected asset installation and validation
 
 **Files:**
 - Modify: `scripts/render-doc-previews.sh`
@@ -524,7 +524,7 @@ Require exact README references for the four PNG files, reject any
 `quota-states.svg` or `refresh-states.svg` reference, and fail if either
 obsolete SVG remains tracked in `docs/images`.
 
-- [ ] **Step 3: Generalize the transactional renderer script**
+- [ ] **Step 3: Generalize the rollback-protected renderer script**
 
 Represent the asset set as:
 
@@ -571,7 +571,7 @@ git commit -m "build: install complete README asset set"
 - Create: `docs/images/quota-states-loud.png`
 - Create: `docs/images/refresh-states-loud.png`
 
-- [ ] **Step 1: Render and transactionally install all assets**
+- [ ] **Step 1: Render and install the complete validated asset set**
 
 Run:
 
@@ -732,7 +732,7 @@ Run:
 
 ```sh
 scripts/validate-doc-images.sh
-rg -n 'quota-states\\.svg|refresh-states\\.svg' README.md docs
+rg -n 'quota-states\\.svg|refresh-states\\.svg' README.md docs/images
 ```
 
 Expected: validator passes and `rg` returns no matches.

@@ -347,19 +347,25 @@ the editor.
 `DocumentationPreviewRenderer.renderAll` produces every required PNG in one
 isolated output directory.
 
-`scripts/render-doc-previews.sh` retains its transactional behavior:
+`scripts/render-doc-previews.sh` retains rollback-protected multi-file
+replacement:
 
 1. create a system-temporary staging directory;
 2. render all assets with isolated in-memory preferences;
 3. validate the complete staged set;
 4. acquire the documentation-image install lock;
 5. create rollback copies for every existing target;
-6. install all new files atomically within the repository filesystem;
+6. replace each target with an atomic same-filesystem rename while holding the
+   install lock;
 7. validate installed files and compare them with staging;
 8. restore the complete previous set if any replacement or validation fails;
 9. remove staging, temporary, lock, and rollback files.
 
-Partial asset installation is not an acceptable result.
+Normal completion and catchable failures must leave one complete validated
+set. POSIX does not provide one atomic transaction across four fixed paths, so
+an uncatchable process termination between renames can expose an intermediate
+set; the retained staged/rollback naming and the next validated render make
+that state detectable and repairable.
 
 ## 10. Validation
 

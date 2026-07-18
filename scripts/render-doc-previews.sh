@@ -113,12 +113,13 @@ validate_directory() {
 compare_directories() {
   local left="$1"
   local right="$2"
+  local mismatch_message="${3:-documentation render is not deterministic}"
   local asset
 
   for asset in "${ASSETS[@]}"; do
     cmp -s "$left/$asset" "$right/$asset" \
       || {
-        echo "documentation render is not deterministic: $asset" >&2
+        echo "$mismatch_message: $asset" >&2
         return 1
       }
   done
@@ -164,6 +165,11 @@ if (( check_only )); then
   render_into "$CHECK_STAGING"
   validate_directory "$CHECK_STAGING"
   compare_directories "$STAGING" "$CHECK_STAGING"
+  "$ROOT_DIR/scripts/validate-doc-images.sh"
+  compare_directories \
+    "$STAGING" \
+    "$IMAGE_DIR" \
+    "committed documentation image is out of date"
   echo "documentation preview determinism checks passed"
   exit 0
 fi

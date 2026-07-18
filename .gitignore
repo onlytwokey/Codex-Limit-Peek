@@ -5,6 +5,10 @@ build/
 .superpowers/
 /docs/images/.render-doc-previews.lock
 /docs/images/.panel-preview.png.new.*
+/docs/images/.quota-states-loud.png.new.*
+/docs/images/.refresh-states-loud.png.new.*
 /docs/images/.appearance-settings-loud.png.new.*
 /docs/images/.panel-preview.png.rollback.*
+/docs/images/.quota-states-loud.png.rollback.*
+/docs/images/.refresh-states-loud.png.rollback.*
 /docs/images/.appearance-settings-loud.png.rollback.*
