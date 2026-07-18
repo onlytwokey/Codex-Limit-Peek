@@ -653,7 +653,7 @@ Use:
 ```html
 <img src="docs/images/panel-preview.png" alt="LOUD、BOLD、FROST 三套主题的状态栏显示层与额度面板预览" width="860">
 <img src="docs/images/quota-states-loud.png" alt="LOUD 主题下正常、警告和危险额度状态的生产菜单栏显示层" width="860">
-<img src="docs/images/refresh-states-loud.png" alt="LOUD 主题下双窗口与仅周额度布局的实时、确认中和已确认刷新状态" width="860">
+<img src="docs/images/refresh-states-loud.png" alt="LOUD 主题下双窗口与单窗口（仅周额度示例）的实时、确认中和已确认刷新状态" width="860">
 <img src="docs/images/appearance-settings-loud.png" alt="LOUD 主题的基础色板、面板参数、状态栏显示层和高级状态颜色设置" width="720">
 ```
 
@@ -709,8 +709,12 @@ flowchart TD
     AppearanceStore --> AppDelegate
     AppDelegate --> AppearanceResolver
     AppearanceResolver --> CompactStatusItemView
-    AppearanceResolver --> StatusPanelView
-    AppearanceResolver --> MoreOverlayInteractionView
+    QuotaStore --> StatusPanelView
+    AppearanceStore --> StatusPanelView
+    StatusPanelView --> AppearanceResolver
+    QuotaStore --> MoreOverlayInteractionView
+    AppearanceStore --> MoreOverlayInteractionView
+    MoreOverlayInteractionView --> AppearanceResolver
 ```
 
 - [ ] **Step 6: Delete obsolete SVGs**
