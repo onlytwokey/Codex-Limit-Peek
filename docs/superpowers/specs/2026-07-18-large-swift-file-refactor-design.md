@@ -1,6 +1,6 @@
 # Large Swift File Refactor Design
 
-**Status:** Design approved; pending written-spec review
+**Status:** Implemented and validated
 
 **Date:** 2026-07-18
 
