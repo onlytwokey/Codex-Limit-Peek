@@ -1,8 +1,14 @@
 # Documentation Render CI Stability Design
 
-**Status:** Implemented and validated
+**Status:** Superseded
 
 **Date:** 2026-07-18
+
+> Superseded by
+> `2026-07-18-local-only-documentation-rendering-design.md` after GitHub's
+> macOS 15 / Swift 6.1 renderer produced valid PNGs that differed from the
+> locally approved macOS 26 / Swift 6.3 assets. Documentation PNG generation
+> is now intentionally a local contributor workflow.
 
 ## Context
 
