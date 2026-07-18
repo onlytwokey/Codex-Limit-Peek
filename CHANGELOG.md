@@ -12,6 +12,8 @@
 - Added independently remembered LOUD, BOLD, and FROST appearance themes for the panel and menu bar status item.
 - Added real-time controls for theme colors, status colors, typography, outlines, corner radius, shadows, and opacity.
 - Added a global 90%–150% font-size control for the appearance editor.
+- Added a per-theme status-item display editor for font size, outline, corner radius, shadow depth and blur, horizontal padding, and tag height.
+- Added square custom-color buttons backed by the macOS system color panel, including alpha selection.
 
 ### Changed
 - Removed mock quota fallback so the app now prefers real local session-derived quotas.
@@ -30,6 +32,12 @@
 - Documented separate end-user installation and incremental contributor build workflows.
 - Replaced the system More popover with an arrowless, theme-resolved two-level overlay.
 - Slider changes now show the saving state only after editing ends, then return to saved when persistence completes.
+- Migrated appearance profiles to schema v3 while preserving supported legacy status-item geometry.
+- Refreshed the GitHub interface preview with equal-weight LOUD, BOLD, and FROST status-item/panel renders plus a LOUD settings overview.
+
+### Fixed
+- Prevented clicks and trackpad scroll gestures inside the appearance overlay from passing through to underlying desktop content or dismissing the overlay.
+- Kept custom color selection reliable across overlay navigation and placed the shared system color panel above the appearance window.
 
 ## [0.1.0] - 2026-07-09
 

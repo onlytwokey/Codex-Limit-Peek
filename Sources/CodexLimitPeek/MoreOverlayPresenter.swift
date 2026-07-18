@@ -5,13 +5,14 @@ import SwiftUI
 enum MoreOverlayPage: Equatable, Sendable {
     case actions
     case appearance
+    case statusItem
     case stateColors
 
     var width: CGFloat {
         switch self {
         case .actions:
             MoreOverlayMetrics.actionsWidth
-        case .appearance, .stateColors:
+        case .appearance, .statusItem, .stateColors:
             320
         }
     }
@@ -22,6 +23,8 @@ enum MoreOverlayPage: Equatable, Sendable {
             nil
         case .appearance:
             MoreOverlayMetrics.appearanceSize
+        case .statusItem:
+            MoreOverlayMetrics.statusItemSize
         case .stateColors:
             MoreOverlayMetrics.stateColorsSize
         }
@@ -40,6 +43,7 @@ enum MoreOverlayMetrics {
     static let shadowSafetyInset = ThemePanelLayout.shadowSafetyInset
     static let actionsWidth: CGFloat = 224
     static let appearanceSize = NSSize(width: 320, height: 548)
+    static let statusItemSize = NSSize(width: 320, height: 548)
     static let stateColorsSize = NSSize(width: 320, height: 430)
 
     static func layout(
@@ -112,6 +116,8 @@ enum MoreOverlayMetrics {
 enum MoreOverlayClickRole: Equatable {
     case anchor
     case interaction
+    case hitShield
+    case visualShield
     case parentPanel
     case colorPanel
     case auxiliaryChild
@@ -128,10 +134,46 @@ enum MoreOverlayDismissalPolicy {
         for role: MoreOverlayClickRole
     ) -> MoreOverlayDismissalAction {
         switch role {
-        case .anchor, .interaction, .colorPanel, .auxiliaryChild:
+        case
+            .anchor,
+            .interaction,
+            .hitShield,
+            .visualShield,
+            .colorPanel,
+            .auxiliaryChild:
             .keep
         case .parentPanel, .otherApplicationWindow:
             .closeOverlay
+        }
+    }
+}
+
+enum MoreOverlayEventPolicy {
+    static func shouldConsume(
+        eventType: NSEvent.EventType,
+        role: MoreOverlayClickRole
+    ) -> Bool {
+        switch role {
+        case .hitShield:
+            switch eventType {
+            case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+                return true
+            default:
+                return false
+            }
+        case .visualShield:
+            switch eventType {
+            case
+                .leftMouseDown,
+                .rightMouseDown,
+                .otherMouseDown,
+                .scrollWheel:
+                return true
+            default:
+                return false
+            }
+        default:
+            return false
         }
     }
 }
@@ -142,8 +184,65 @@ final class MoreInteractionPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
+    var hasNestedScrollView: Bool {
+        contentView?.firstNestedScrollView != nil
+    }
+
     override func cancelOperation(_ sender: Any?) {
         onEscape?()
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .scrollWheel, hasNestedScrollView {
+            forwardScrollWheel(event)
+            return
+        }
+        super.sendEvent(event)
+    }
+
+    func forwardScrollWheel(_ event: NSEvent) {
+        contentView?.firstNestedScrollView?.scrollWheel(with: event)
+    }
+}
+
+final class MoreOverlayHitShieldPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
+final class MoreOverlayHitShieldView: NSView {
+    weak var interactionPanel: MoreInteractionPanel?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        bounds.contains(point) ? self : nil
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func mouseDown(with event: NSEvent) {}
+
+    override func rightMouseDown(with event: NSEvent) {}
+
+    override func otherMouseDown(with event: NSEvent) {}
+
+    override func scrollWheel(with event: NSEvent) {
+        interactionPanel?.forwardScrollWheel(event)
+    }
+}
+
+private extension NSView {
+    var firstNestedScrollView: NSScrollView? {
+        if let scrollView = self as? NSScrollView {
+            return scrollView
+        }
+        for subview in subviews {
+            if let scrollView = subview.firstNestedScrollView {
+                return scrollView
+            }
+        }
+        return nil
     }
 }
 
@@ -181,6 +280,7 @@ struct MoreOverlayAnchorReader: NSViewRepresentable {
 
 struct MoreOverlayWindowPair {
     let interaction: MoreInteractionPanel
+    let hitShield: MoreOverlayHitShieldPanel
     let decoration: NSPanel
 }
 
@@ -191,6 +291,8 @@ final class MoreOverlayPresenter: ObservableObject {
 
     private let quotaStore: QuotaStore
     private let appearanceStore: AppearanceStore
+    private let colorPanelCoordinator:
+        any AppearanceColorPanelCoordinating
     private weak var parentWindow: NSPanel?
     private weak var anchorView: MoreOverlayAnchorView?
     private var windowPair: MoreOverlayWindowPair?
@@ -201,17 +303,30 @@ final class MoreOverlayPresenter: ObservableObject {
     private var localEventMonitor: Any?
     private var repositionTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
+    private var protectedVisualFrame: NSRect?
+    private(set) var interactionRootReplacementCount = 0
 
     init(
         quotaStore: QuotaStore,
-        appearanceStore: AppearanceStore
+        appearanceStore: AppearanceStore,
+        colorPanelCoordinator:
+            any AppearanceColorPanelCoordinating
+            = AppearanceColorPanelCoordinator()
     ) {
         self.quotaStore = quotaStore
         self.appearanceStore = appearanceStore
+        self.colorPanelCoordinator = colorPanelCoordinator
 
         appearanceStore.$revision
             .sink { [weak self] _ in
                 self?.scheduleReposition()
+            }
+            .store(in: &cancellables)
+
+        appearanceStore.$selectedTheme
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.colorPanelCoordinator.close()
             }
             .store(in: &cancellables)
 
@@ -254,6 +369,7 @@ final class MoreOverlayPresenter: ObservableObject {
         }
         page = .actions
         isPresented = true
+        replaceInteractionRoot()
         updateRootsAndFrames()
         if parentWindow?.isVisible == true {
             windowPair?.interaction.makeKeyAndOrderFront(nil)
@@ -267,20 +383,29 @@ final class MoreOverlayPresenter: ObservableObject {
     }
 
     func navigate(to newPage: MoreOverlayPage) {
+        if newPage != page {
+            colorPanelCoordinator.close()
+        }
         page = newPage
         guard isPresented else { return }
+        replaceInteractionRoot()
         updateRootsAndFrames()
     }
 
     func close(resetPage: Bool = true) {
+        colorPanelCoordinator.close()
         repositionTask?.cancel()
         repositionTask = nil
+        protectedVisualFrame = nil
         appearanceStore.flushPendingSave()
-        NSColorPanel.shared.orderOut(nil)
         windowPair?.interaction.orderOut(nil)
+        windowPair?.hitShield.orderOut(nil)
         windowPair?.decoration.orderOut(nil)
         if let interaction = windowPair?.interaction {
             parentWindow?.removeChildWindow(interaction)
+        }
+        if let hitShield = windowPair?.hitShield {
+            parentWindow?.removeChildWindow(hitShield)
         }
         if let decoration = windowPair?.decoration {
             parentWindow?.removeChildWindow(decoration)
@@ -289,6 +414,30 @@ final class MoreOverlayPresenter: ObservableObject {
         isPresented = false
         if resetPage {
             page = .actions
+        }
+    }
+
+    func openColorPanel(
+        for token: AppearanceColorToken
+    ) {
+        guard
+            isPresented,
+            let interaction = windowPair?.interaction
+        else {
+            return
+        }
+        let theme = appearanceStore.selectedTheme
+        colorPanelCoordinator.beginEditing(
+            theme: theme,
+            token: token,
+            color: appearanceStore.color(for: token),
+            above: interaction.level
+        ) { [weak self] theme, token, color in
+            self?.appearanceStore.setColor(
+                color,
+                for: token,
+                in: theme
+            )
         }
     }
 
@@ -309,13 +458,19 @@ final class MoreOverlayPresenter: ObservableObject {
             backing: .buffered,
             defer: false
         )
+        let hitShield = MoreOverlayHitShieldPanel(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
         let decoration = NSPanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
-        for panel in [interaction, decoration] {
+        for panel in [interaction, hitShield, decoration] {
             panel.backgroundColor = .clear
             panel.isOpaque = false
             panel.hasShadow = false
@@ -326,7 +481,18 @@ final class MoreOverlayPresenter: ObservableObject {
                 .transient
             ]
         }
+        interaction.backgroundColor = NSColor(
+            calibratedWhite: 0,
+            alpha: 0.001
+        )
+        hitShield.backgroundColor = NSColor(
+            calibratedWhite: 0,
+            alpha: 0.001
+        )
         decoration.ignoresMouseEvents = true
+        let hitShieldView = MoreOverlayHitShieldView()
+        hitShieldView.interactionPanel = interaction
+        hitShield.contentView = hitShieldView
         interaction.onEscape = { [weak self] in
             self?.close()
         }
@@ -354,6 +520,7 @@ final class MoreOverlayPresenter: ObservableObject {
         self.decorationHost = decorationHost
         let pair = MoreOverlayWindowPair(
             interaction: interaction,
+            hitShield: hitShield,
             decoration: decoration
         )
         windowPair = pair
@@ -369,8 +536,16 @@ final class MoreOverlayPresenter: ObservableObject {
             page: page,
             onNavigate: { [weak self] page in
                 self?.navigate(to: page)
+            },
+            onOpenCustomColor: { [weak self] token in
+                self?.openColorPanel(for: token)
             }
         )
+    }
+
+    private func replaceInteractionRoot() {
+        interactionHost?.rootView = makeInteractionRoot(page: page)
+        interactionRootReplacementCount &+= 1
     }
 
     private var resolvedAppearance: ResolvedPanelAppearance {
@@ -422,7 +597,6 @@ final class MoreOverlayPresenter: ObservableObject {
             return
         }
 
-        interactionHost?.rootView = makeInteractionRoot(page: page)
         let contentSize = measuredContentSize(for: page)
         decorationHost?.rootView = MoreOverlayDecorationView(
             quotaStore: quotaStore,
@@ -443,12 +617,20 @@ final class MoreOverlayPresenter: ObservableObject {
             visibleFrame: visibleFrame,
             shadowInsets: shadowInsets
         )
+        protectedVisualFrame = layout.visualFrame
 
         pair.decoration.level = parentWindow.level
+        pair.hitShield.level = parentWindow.level
         pair.interaction.level = parentWindow.level
         if pair.decoration.parent !== parentWindow {
             parentWindow.addChildWindow(
                 pair.decoration,
+                ordered: .above
+            )
+        }
+        if pair.hitShield.parent !== parentWindow {
+            parentWindow.addChildWindow(
+                pair.hitShield,
                 ordered: .above
             )
         }
@@ -466,6 +648,10 @@ final class MoreOverlayPresenter: ObservableObject {
                 layout.interactionFrame,
                 display: true
             )
+            pair.hitShield.setFrame(
+                layout.visualFrame,
+                display: true
+            )
             pair.decoration.setFrame(
                 layout.decorationFrame,
                 display: true
@@ -475,9 +661,13 @@ final class MoreOverlayPresenter: ObservableObject {
             .above,
             relativeTo: parentWindow.windowNumber
         )
-        pair.interaction.order(
+        pair.hitShield.order(
             .above,
             relativeTo: pair.decoration.windowNumber
+        )
+        pair.interaction.order(
+            .above,
+            relativeTo: pair.hitShield.windowNumber
         )
     }
 
@@ -488,6 +678,7 @@ final class MoreOverlayPresenter: ObservableObject {
                 .leftMouseDown,
                 .rightMouseDown,
                 .otherMouseDown,
+                .scrollWheel,
                 .keyDown
             ]
         ) { [weak self] event in
@@ -512,10 +703,21 @@ final class MoreOverlayPresenter: ObservableObject {
         }
 
         switch event.type {
-        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+        case
+            .leftMouseDown,
+            .rightMouseDown,
+            .otherMouseDown,
+            .scrollWheel:
             let role = clickRole(for: event)
+            if MoreOverlayEventPolicy.shouldConsume(
+                eventType: event.type,
+                role: role
+            ) {
+                return nil
+            }
             if MoreOverlayDismissalPolicy.action(for: role)
-                == .closeOverlay
+                == .closeOverlay,
+                event.type != .scrollWheel
             {
                 close()
             }
@@ -552,6 +754,12 @@ final class MoreOverlayPresenter: ObservableObject {
         if candidate === windowPair?.interaction {
             return .interaction
         }
+        if candidate === windowPair?.hitShield {
+            return .hitShield
+        }
+        if candidate === windowPair?.decoration {
+            return .visualShield
+        }
         if candidate is NSColorPanel {
             return .colorPanel
         }
@@ -563,6 +771,9 @@ final class MoreOverlayPresenter: ObservableObject {
                 || hasColorPanelAncestor(candidate)
         {
             return .auxiliaryChild
+        }
+        if protectedVisualFrame?.contains(screenPoint) == true {
+            return .visualShield
         }
         if candidate === parentWindow {
             return .parentPanel

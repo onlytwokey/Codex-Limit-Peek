@@ -104,6 +104,179 @@ struct AppearanceThemeTests {
     }
 
     @Test
+    func statusItemDefaultsReproduceExistingReferenceRecipes() {
+        #expect(
+            AppearanceProfile.default(for: .loud).statusItemGeometry
+                == StatusItemGeometry(
+                    fontSize: 10,
+                    outlineWidth: 2,
+                    cornerRadius: 0,
+                    shadowDepth: 3,
+                    shadowBlur: 0,
+                    horizontalPadding: 7,
+                    tagHeight: 18
+                )
+        )
+        #expect(
+            AppearanceProfile.default(for: .bold).statusItemGeometry
+                == StatusItemGeometry(
+                    fontSize: 10,
+                    outlineWidth: 1.5,
+                    cornerRadius: 5,
+                    shadowDepth: 2,
+                    shadowBlur: 0,
+                    horizontalPadding: 7,
+                    tagHeight: 18
+                )
+        )
+        #expect(
+            AppearanceProfile.default(for: .frost).statusItemGeometry
+                == StatusItemGeometry(
+                    fontSize: 10,
+                    outlineWidth: 1.5,
+                    cornerRadius: 7,
+                    shadowDepth: 2,
+                    shadowBlur: 0,
+                    horizontalPadding: 7,
+                    tagHeight: 18
+                )
+        )
+    }
+
+    @Test
+    func editorRangesRemainNarrowerThanLegacyCompatibilityBounds() {
+        #expect(
+            StatusItemGeometry.EditorRange.fontSize == 8...14
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.outlineWidth == 0...4
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.cornerRadius == 0...12
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.shadowDepth == 0...6
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.shadowBlur == 0...8
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.horizontalPadding == 2...14
+        )
+        #expect(
+            StatusItemGeometry.EditorRange.tagHeight == 14...22
+        )
+        #expect(
+            StatusItemGeometry.CompatibilityRange.cornerRadius == 0...28
+        )
+        #expect(
+            StatusItemGeometry.CompatibilityRange.shadowBlur == 0...20
+        )
+    }
+
+    @Test
+    func validationClampsStatusGeometryToCompatibilityBounds() {
+        var profile = AppearanceProfile.default(for: .loud)
+        profile.statusItemGeometry = StatusItemGeometry(
+            fontSize: 50,
+            outlineWidth: -1,
+            cornerRadius: 80,
+            shadowDepth: 50,
+            shadowBlur: 80,
+            horizontalPadding: 100,
+            tagHeight: 1
+        )
+
+        let result = profile.validated(for: .loud).statusItemGeometry
+
+        #expect(result.fontSize == 14)
+        #expect(result.outlineWidth == 0)
+        #expect(result.cornerRadius == 28)
+        #expect(result.shadowDepth == 6)
+        #expect(result.shadowBlur == 20)
+        #expect(result.horizontalPadding == 14)
+        #expect(result.tagHeight == 14)
+    }
+
+    @Test
+    func validationUsesThemeDefaultsForNonFiniteStatusGeometry() {
+        var profile = AppearanceProfile.default(for: .bold)
+        profile.statusItemGeometry = StatusItemGeometry(
+            fontSize: .nan,
+            outlineWidth: .infinity,
+            cornerRadius: -Double.infinity,
+            shadowDepth: .nan,
+            shadowBlur: .infinity,
+            horizontalPadding: -Double.infinity,
+            tagHeight: .nan
+        )
+
+        let result = profile.validated(for: .bold).statusItemGeometry
+
+        #expect(result == StatusItemGeometry.default(for: .bold))
+    }
+
+    @Test
+    func panelGeometryDoesNotAffectResolvedStatusItemAppearance() {
+        var profile = AppearanceProfile.default(for: .frost)
+        let reference = AppearanceResolver.status(
+            profile: profile,
+            primaryRemainingPercent: 81,
+            weeklyRemainingPercent: 49,
+            isUnavailable: false,
+            showsFailurePattern: false
+        )
+
+        profile.geometry = ThemeGeometry(
+            fontScale: 1.25,
+            outlineWidth: 4,
+            cornerRadius: 28,
+            shadowDepth: 10,
+            shadowBlur: 20,
+            surfaceOpacity: 1
+        )
+
+        #expect(
+            AppearanceResolver.status(
+                profile: profile,
+                primaryRemainingPercent: 81,
+                weeklyRemainingPercent: 49,
+                isUnavailable: false,
+                showsFailurePattern: false
+            ) == reference
+        )
+    }
+
+    @Test
+    func statusItemGeometryDoesNotAffectResolvedPanelAppearance() {
+        var profile = AppearanceProfile.default(for: .loud)
+        let reference = AppearanceResolver.panel(
+            profile: profile,
+            primaryRemainingPercent: 81,
+            weeklyRemainingPercent: 49,
+            isUnavailable: false
+        )
+        profile.statusItemGeometry = StatusItemGeometry(
+            fontSize: 14,
+            outlineWidth: 4,
+            cornerRadius: 12,
+            shadowDepth: 6,
+            shadowBlur: 8,
+            horizontalPadding: 14,
+            tagHeight: 22
+        )
+
+        #expect(
+            AppearanceResolver.panel(
+                profile: profile,
+                primaryRemainingPercent: 81,
+                weeklyRemainingPercent: 49,
+                isUnavailable: false
+            ) == reference
+        )
+    }
+
+    @Test
     func unreadableTextFallsBackWithoutMutatingTheProfile() {
         var profile = AppearanceProfile.default(for: .bold)
         profile.palette.textAndOutline = profile.palette.surface
@@ -122,13 +295,14 @@ struct AppearanceThemeTests {
     @Test
     func statusResolutionFitsTheWholeRecipeToMenuBarHeight() {
         var profile = AppearanceProfile.default(for: .loud)
-        profile.geometry = ThemeGeometry(
-            fontScale: 1.25,
+        profile.statusItemGeometry = StatusItemGeometry(
+            fontSize: 14,
             outlineWidth: 4,
-            cornerRadius: 28,
-            shadowDepth: 10,
-            shadowBlur: 20,
-            surfaceOpacity: 1
+            cornerRadius: 12,
+            shadowDepth: 6,
+            shadowBlur: 8,
+            horizontalPadding: 14,
+            tagHeight: 22
         )
 
         let resolved = AppearanceResolver.status(
@@ -142,7 +316,7 @@ struct AppearanceThemeTests {
 
         #expect(resolved.outlineWidth > 2)
         #expect(resolved.shadowDepth > 3)
-        #expect(resolved.cornerRadius == 28)
+        #expect(resolved.cornerRadius == 12)
         #expect(
             fitted.tagHeight
                 + fitted.outlineWidth

@@ -19,6 +19,8 @@ jobs:
         run: swift --version
       - name: Check shell syntax
         run: bash -n scripts/*.sh
+      - name: Validate documentation images
+        run: scripts/validate-doc-images.sh
       - name: Run Swift tests
         run: scripts/test.sh
       - name: Test source installation
