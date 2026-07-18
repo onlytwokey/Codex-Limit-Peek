@@ -3,6 +3,7 @@ import SwiftUI
 
 enum AppearanceEditorInitialScrollTarget: Hashable, Sendable {
     case themeSelector
+    case panelControls
     case statusItemControls
 }
 
@@ -10,9 +11,12 @@ enum AppearanceEditorDocumentationMetrics {
     static func trailingScrollSpace(
         for target: AppearanceEditorInitialScrollTarget?
     ) -> CGFloat {
-        target == .statusItemControls
-            ? MoreOverlayMetrics.statusItemSize.height
-            : 0
+        switch target {
+        case .panelControls, .statusItemControls:
+            MoreOverlayMetrics.statusItemSize.height
+        case nil, .themeSelector:
+            0
+        }
     }
 }
 
@@ -266,22 +270,39 @@ struct AppearanceEditorView: View {
                         }
 
                         geometrySection
+                            .id(
+                                AppearanceEditorInitialScrollTarget
+                                    .panelControls
+                            )
                         statusItemSection
                         stateColorsSection
                         resetSection
+
+                        if initialScrollTarget == .panelControls {
+                            Color.clear
+                                .frame(
+                                    height:
+                                        AppearanceEditorDocumentationMetrics
+                                            .trailingScrollSpace(
+                                                for: initialScrollTarget
+                                            )
+                                )
+                                .accessibilityHidden(true)
+                        }
                     }
                 }
                 .scrollIndicators(.visible, axes: .vertical)
                 .scrollBounceBehavior(.basedOnSize, axes: .vertical)
                 .task(id: initialScrollTarget) {
-                    guard initialScrollTarget == .themeSelector else {
+                    guard
+                        let target = initialScrollTarget,
+                        target == .themeSelector
+                            || target == .panelControls
+                    else {
                         return
                     }
                     await Task.yield()
-                    proxy.scrollTo(
-                        AppearanceEditorInitialScrollTarget.themeSelector,
-                        anchor: .top
-                    )
+                    proxy.scrollTo(target, anchor: .top)
                 }
             }
         }

@@ -58,6 +58,27 @@ struct QuotaStoreTests {
     }
 
     @Test
+    func menuBarFormattingAcceptsFixedReferenceDate() {
+        let referenceDate = Date(
+            timeIntervalSince1970: 1_725_450_400
+        )
+        var snapshot = QuotaSnapshot.fixture(now: referenceDate)
+        snapshot.remainingPercent = 74
+        snapshot.resetDate = referenceDate.addingTimeInterval(
+            3 * 3_600 + 29 * 60
+        )
+
+        #expect(
+            snapshot.menuBarTitle(relativeTo: referenceDate)
+                == "74% | 3h29m"
+        )
+        #expect(
+            snapshot.shortResetText(relativeTo: referenceDate)
+                == "3h29m"
+        )
+    }
+
+    @Test
     func localRecordRejectsSoleFiveHourOrUnknownWindow() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
 

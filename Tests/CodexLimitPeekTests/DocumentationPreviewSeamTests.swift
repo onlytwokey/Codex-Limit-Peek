@@ -55,17 +55,17 @@ struct DocumentationPreviewSeamTests {
         #expect(environment.appearanceEditorInitialScrollTarget == nil)
 
         environment.themeStatusBarThicknessOverride = 22
-        environment.appearanceEditorInitialScrollTarget = .themeSelector
+        environment.appearanceEditorInitialScrollTarget = .panelControls
 
         #expect(environment.themeStatusBarThicknessOverride == 22)
         #expect(
             environment.appearanceEditorInitialScrollTarget
-                == .themeSelector
+                == .panelControls
         )
     }
 
     @Test
-    func statusItemAnchorAddsOnlyDocumentationTrailingSpace() {
+    func longControlAnchorsAddOnlyDocumentationTrailingSpace() {
         #expect(
             AppearanceEditorDocumentationMetrics.trailingScrollSpace(
                 for: nil
@@ -78,8 +78,13 @@ struct DocumentationPreviewSeamTests {
         )
         #expect(
             AppearanceEditorDocumentationMetrics.trailingScrollSpace(
+                for: .panelControls
+            ) == MoreOverlayMetrics.statusItemSize.height
+        )
+        #expect(
+            AppearanceEditorDocumentationMetrics.trailingScrollSpace(
                 for: .statusItemControls
-            ) >= MoreOverlayMetrics.statusItemSize.height
+            ) == MoreOverlayMetrics.statusItemSize.height
         )
     }
 }

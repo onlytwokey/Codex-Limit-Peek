@@ -70,6 +70,22 @@ struct StatusItemAppearanceTests {
     }
 
     @Test @MainActor
+    func documentationCanFixStatusBarThickness() {
+        let view = CompactStatusItemView()
+
+        view.update(
+            title: "74% | 3h29m",
+            weeklyTitle: "82%",
+            appearance: resolvedStatus(for: .loud),
+            showsFailurePattern: false,
+            tooltip: "Fixed documentation height",
+            statusBarThickness: 22
+        )
+
+        #expect(view.frame.height == 22)
+    }
+
+    @Test @MainActor
     func profileStatusGeometryDrivesRenderedWidth() {
         let view = CompactStatusItemView()
         var profile = AppearanceProfile.default(for: .bold)

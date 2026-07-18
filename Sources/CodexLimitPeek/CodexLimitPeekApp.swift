@@ -404,7 +404,8 @@ final class CompactStatusItemView: NSView {
         weeklyTitle: String?,
         appearance: ResolvedStatusItemAppearance,
         showsFailurePattern: Bool,
-        tooltip: String
+        tooltip: String,
+        statusBarThickness: CGFloat = NSStatusBar.system.thickness
     ) {
         self.title = title
         self.weeklyTitle = weeklyTitle
@@ -432,7 +433,12 @@ final class CompactStatusItemView: NSView {
                 + horizontalPadding * 2
                 + chromeWidth
         )
-        frame = NSRect(x: 0, y: 0, width: width, height: NSStatusBar.system.thickness)
+        frame = NSRect(
+            x: 0,
+            y: 0,
+            width: width,
+            height: statusBarThickness
+        )
         needsDisplay = true
     }
 
@@ -1915,12 +1921,16 @@ struct QuotaSnapshot: Sendable {
     }
 
     var menuBarTitle: String {
+        menuBarTitle(relativeTo: Date())
+    }
+
+    func menuBarTitle(relativeTo referenceDate: Date) -> String {
         guard !isUnavailable else { return "未同步" }
         switch displayMode {
         case .dualWindow:
-            return "\(percentText) | \(shortResetText)"
+            return "\(percentText) | \(shortResetText(relativeTo: referenceDate))"
         case .weeklyOnly:
-            return shortResetText
+            return shortResetText(relativeTo: referenceDate)
         }
     }
 
@@ -2055,8 +2065,15 @@ struct QuotaSnapshot: Sendable {
     }
 
     var shortResetText: String {
+        shortResetText(relativeTo: Date())
+    }
+
+    func shortResetText(relativeTo referenceDate: Date) -> String {
         guard !isUnavailable else { return "—" }
-        return compactResetText(for: resetDate)
+        return compactResetText(
+            for: resetDate,
+            relativeTo: referenceDate
+        )
     }
 
     var resetClockText: String {
@@ -2098,9 +2115,15 @@ struct QuotaSnapshot: Sendable {
         return "\(minutes)分后"
     }
 
-    private func compactResetText(for date: Date) -> String {
-        guard date > Date() else { return "—" }
-        let seconds = max(Int(date.timeIntervalSinceNow), 0)
+    private func compactResetText(
+        for date: Date,
+        relativeTo referenceDate: Date
+    ) -> String {
+        guard date > referenceDate else { return "—" }
+        let seconds = max(
+            Int(date.timeIntervalSince(referenceDate)),
+            0
+        )
         let days = seconds / 86_400
         let hours = (seconds % 86_400) / 3_600
         let minutes = (seconds % 3_600) / 60
