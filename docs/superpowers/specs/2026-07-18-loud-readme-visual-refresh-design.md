@@ -233,7 +233,9 @@ Explain that quota state and data freshness are separate:
 - a temporary failure retains the latest reliable quota and solid status
   appearance;
 - confirmed failure retains the quota text and enables the stripe pattern;
-- failure indication never replaces quota information.
+- when a reliable snapshot exists, failure indication never replaces quota
+  information; the genuine no-snapshot unavailable state still displays
+  `未同步`.
 
 #### Feature Summary
 
@@ -288,10 +290,16 @@ flowchart TD
     CodexSessionQuotaProvider --> CompositeQuotaProvider
     CompositeQuotaProvider --> QuotaStore
     QuotaStore --> RefreshFailureTracker
-    AppearanceStore --> AppearanceResolver
-    QuotaStore --> AppearanceResolver
+    QuotaStore --> AppDelegate
+    AppearanceStore --> AppDelegate
+    AppDelegate --> AppearanceResolver
     AppearanceResolver --> CompactStatusItemView
-    AppearanceResolver --> OverlayPanel["Overlay panel"]
+    QuotaStore --> StatusPanelView
+    AppearanceStore --> StatusPanelView
+    StatusPanelView --> AppearanceResolver
+    QuotaStore --> MoreOverlayInteractionView
+    AppearanceStore --> MoreOverlayInteractionView
+    MoreOverlayInteractionView --> AppearanceResolver
 ```
 
 Supporting prose explains that quota acquisition, refresh reliability, and
