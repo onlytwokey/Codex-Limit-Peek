@@ -3,3 +3,8 @@ build/
 .swiftpm/
 .DS_Store
 .superpowers/
+/docs/images/.render-doc-previews.lock
+/docs/images/.panel-preview.png.new.*
+/docs/images/.appearance-settings-loud.png.new.*
+/docs/images/.panel-preview.png.rollback.*
+/docs/images/.appearance-settings-loud.png.rollback.*

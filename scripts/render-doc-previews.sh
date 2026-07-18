@@ -2,10 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STAGING="$(
-  mktemp -d \
-    "${TMPDIR:-/tmp}/codex-limit-peek-docs.XXXXXX"
-)"
+STAGING=""
 IMAGE_DIR="$ROOT_DIR/docs/images"
 PANEL="$IMAGE_DIR/panel-preview.png"
 SETTINGS="$IMAGE_DIR/appearance-settings-loud.png"
@@ -74,7 +71,7 @@ cleanup() {
       echo "original settings retained at $SETTINGS_BACKUP" >&2
     fi
   fi
-  if [[ -d "$STAGING" ]]; then
+  if [[ -n "$STAGING" && -d "$STAGING" ]]; then
     /bin/rm -rf "$STAGING"
   fi
   if (( lock_acquired )) && [[ -f "$LOCK_FILE" ]]; then
@@ -89,6 +86,10 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+STAGING="$(
+  mktemp -d \
+    "${TMPDIR:-/tmp}/codex-limit-peek-docs.XXXXXX"
+)"
 mkdir -p "$IMAGE_DIR"
 cd "$ROOT_DIR"
 
@@ -171,3 +172,12 @@ cmp -s "$STAGING/appearance-settings-loud.png" "$SETTINGS" \
   }
 
 replacement_committed=1
+
+find "$IMAGE_DIR" \
+  -maxdepth 1 \
+  -type f \
+  \( \
+    -name '.panel-preview.png.rollback.*' \
+    -o -name '.appearance-settings-loud.png.rollback.*' \
+  \) \
+  -exec unlink {} \;
