@@ -4,24 +4,40 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAX_FILE_BYTES=$((3 * 1024 * 1024))
 MAX_TOTAL_BYTES=$((5 * 1024 * 1024))
+ASSETS=(
+  "panel-preview.png"
+  "quota-states-loud.png"
+  "refresh-states-loud.png"
+  "appearance-settings-loud.png"
+)
+WIDTHS=(2400 1840 1840 1440)
+HEIGHTS=(900 720 1350 2400)
+PATHS=()
+check_repository_contract=0
+
+usage() {
+  echo \
+    "usage: $0 [image-directory | panel quota refresh settings]" \
+    >&2
+}
 
 case $# in
   0)
-    PANEL="$ROOT_DIR/docs/images/panel-preview.png"
-    SETTINGS="$ROOT_DIR/docs/images/appearance-settings-loud.png"
+    check_repository_contract=1
+    for asset in "${ASSETS[@]}"; do
+      PATHS[${#PATHS[@]}]="$ROOT_DIR/docs/images/$asset"
+    done
     ;;
   1)
-    PANEL="$1/panel-preview.png"
-    SETTINGS="$1/appearance-settings-loud.png"
+    for asset in "${ASSETS[@]}"; do
+      PATHS[${#PATHS[@]}]="$1/$asset"
+    done
     ;;
-  2)
-    PANEL="$1"
-    SETTINGS="$2"
+  4)
+    PATHS=("$1" "$2" "$3" "$4")
     ;;
   *)
-    echo \
-      "usage: $0 [image-directory | panel-image settings-image]" \
-      >&2
+    usage
     exit 2
     ;;
 esac
@@ -93,32 +109,48 @@ check_png() {
     || fail "documentation image exceeds 3 MiB: $path"
 }
 
-check_png "$PANEL" 2400 900
-check_png "$SETTINGS" 1440 1200
+total_bytes=0
+for ((index = 0; index < ${#PATHS[@]}; index += 1)); do
+  check_png \
+    "${PATHS[$index]}" \
+    "${WIDTHS[$index]}" \
+    "${HEIGHTS[$index]}"
+  bytes="$(stat -f '%z' "${PATHS[$index]}")"
+  total_bytes=$((total_bytes + bytes))
+done
 
-panel_bytes="$(stat -f '%z' "$PANEL")"
-settings_bytes="$(stat -f '%z' "$SETTINGS")"
-(( panel_bytes + settings_bytes <= MAX_TOTAL_BYTES )) \
+(( total_bytes <= MAX_TOTAL_BYTES )) \
   || fail "documentation images exceed 5 MiB combined"
 
-README="$ROOT_DIR/README.md"
-required_references=(
-  '<img src="docs/images/panel-preview.png" alt="LOUD、BOLD、FROST 三套主题的状态栏显示层与额度面板预览" width="860">'
-  '<img src="docs/images/appearance-settings-loud.png" alt="LOUD 主题的主外观设置页与状态栏显示层设置页" width="720">'
-  '![Codex Limit Peek 用量颜色状态](docs/images/quota-states.svg)'
-  '![Codex Limit Peek 刷新健康状态](docs/images/refresh-states.svg)'
-)
+if (( check_repository_contract )); then
+  README="$ROOT_DIR/README.md"
+  required_references=(
+    '<img src="docs/images/panel-preview.png" alt="LOUD、BOLD、FROST 三套主题的状态栏显示层与额度面板预览" width="860">'
+    '<img src="docs/images/quota-states-loud.png" alt="LOUD 主题下正常、警告和危险额度状态的生产菜单栏显示层" width="860">'
+    '<img src="docs/images/refresh-states-loud.png" alt="LOUD 主题下双窗口与仅周额度布局的实时、确认中和已确认刷新状态" width="860">'
+    '<img src="docs/images/appearance-settings-loud.png" alt="LOUD 主题的基础色板、面板参数、状态栏显示层和高级状态颜色设置" width="720">'
+  )
 
-for reference in "${required_references[@]}"; do
-  grep -Fq "$reference" "$README" \
-    || fail "README is missing image reference: $reference"
-done
+  [[ -f "$README" ]] \
+    || fail "missing README: $README"
 
-for asset in \
-  "$ROOT_DIR/docs/images/quota-states.svg" \
-  "$ROOT_DIR/docs/images/refresh-states.svg"; do
-  [[ -f "$asset" ]] \
-    || fail "missing documentation image: $asset"
-done
+  for reference in "${required_references[@]}"; do
+    grep -Fq "$reference" "$README" \
+      || fail "README is missing image reference: $reference"
+  done
+
+  if grep -Eq \
+    '(quota-states|refresh-states)\.svg' \
+    "$README"; then
+    fail "README still references an obsolete documentation SVG"
+  fi
+
+  for asset in \
+    "$ROOT_DIR/docs/images/quota-states.svg" \
+    "$ROOT_DIR/docs/images/refresh-states.svg"; do
+    [[ ! -e "$asset" ]] \
+      || fail "obsolete documentation image is still present: $asset"
+  done
+fi
 
 echo "documentation image checks passed"
