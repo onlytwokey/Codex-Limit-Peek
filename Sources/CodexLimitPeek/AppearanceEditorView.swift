@@ -6,6 +6,16 @@ enum AppearanceEditorInitialScrollTarget: Hashable, Sendable {
     case statusItemControls
 }
 
+enum AppearanceEditorDocumentationMetrics {
+    static func trailingScrollSpace(
+        for target: AppearanceEditorInitialScrollTarget?
+    ) -> CGFloat {
+        target == .statusItemControls
+            ? MoreOverlayMetrics.statusItemSize.height
+            : 0
+    }
+}
+
 private struct AppearanceEditorInitialScrollTargetKey:
     EnvironmentKey
 {
@@ -199,67 +209,67 @@ struct AppearanceEditorView: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    AppearanceLivePreview(profile: store.currentProfile)
-                        .padding(12)
-                        .brutalSectionDivider()
+                    VStack(alignment: .leading, spacing: 0) {
+                        AppearanceLivePreview(profile: store.currentProfile)
+                            .padding(12)
+                            .brutalSectionDivider()
 
-                    themeSelector
-                        .padding(12)
-                        .brutalSectionDivider()
-                        .id(
-                            AppearanceEditorInitialScrollTarget
-                                .themeSelector
-                        )
+                        themeSelector
+                            .padding(12)
+                            .brutalSectionDivider()
+                            .id(
+                                AppearanceEditorInitialScrollTarget
+                                    .themeSelector
+                            )
 
-                    AppearanceEditorSection(
-                        appearance: resolvedAppearance,
-                        title: "基础色板",
-                        subtitle: "面板与状态栏实时共用"
-                    ) {
-                        VStack(spacing: 10) {
-                            colorRow(
-                                title: "背景",
-                                token: .background
-                            )
-                            colorRow(
-                                title: "表面",
-                                token: .surface
-                            )
-                            colorRow(
-                                title: "文字与描边",
-                                token: .textAndOutline
-                            )
-                            colorRow(
-                                title: "操作控件",
-                                token: .actionAccent
-                            )
+                        AppearanceEditorSection(
+                            appearance: resolvedAppearance,
+                            title: "基础色板",
+                            subtitle: "面板与状态栏实时共用"
+                        ) {
+                            VStack(spacing: 10) {
+                                colorRow(
+                                    title: "背景",
+                                    token: .background
+                                )
+                                colorRow(
+                                    title: "表面",
+                                    token: .surface
+                                )
+                                colorRow(
+                                    title: "文字与描边",
+                                    token: .textAndOutline
+                                )
+                                colorRow(
+                                    title: "操作控件",
+                                    token: .actionAccent
+                                )
+                            }
                         }
-                    }
 
-                    if resolvedAppearance.hasContrastSubstitution {
-                        Label(
-                            "当前文字对比度不足，实际显示会自动改用黑色或白色。",
-                            systemImage: "exclamationmark.triangle.fill"
-                        )
-                        .appearanceEditorFont(
-                            size: 11,
-                            weight: .medium
-                        )
-                        .foregroundStyle(Color.orange)
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            BrutalEditorStyle.yellow.opacity(0.28)
-                        )
-                        .brutalSectionDivider()
-                    }
+                        if resolvedAppearance.hasContrastSubstitution {
+                            Label(
+                                "当前文字对比度不足，实际显示会自动改用黑色或白色。",
+                                systemImage: "exclamationmark.triangle.fill"
+                            )
+                            .appearanceEditorFont(
+                                size: 11,
+                                weight: .medium
+                            )
+                            .foregroundStyle(Color.orange)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                BrutalEditorStyle.yellow.opacity(0.28)
+                            )
+                            .brutalSectionDivider()
+                        }
 
-                    geometrySection
-                    statusItemSection
-                    stateColorsSection
-                    resetSection
-                }
+                        geometrySection
+                        statusItemSection
+                        stateColorsSection
+                        resetSection
+                    }
                 }
                 .scrollIndicators(.visible, axes: .vertical)
                 .scrollBounceBehavior(.basedOnSize, axes: .vertical)
@@ -913,101 +923,113 @@ struct StatusItemEditorView: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                VStack(
-                    alignment: .leading,
-                    spacing: 0
-                ) {
                     VStack(
                         alignment: .leading,
-                        spacing: 9
+                        spacing: 0
                     ) {
-                        Text("实时预览")
-                            .appearanceEditorFont(
-                                size: 9,
-                                weight: .black,
-                                design: .monospaced
-                            )
-                        HStack {
-                            Spacer()
-                            ThemeStatusChromePreview(
-                                appearance: statusAppearance
-                            )
-                            Spacer()
-                        }
-                    }
-                    .padding(12)
-                    .brutalSectionDivider()
-                    .accessibilityIdentifier(
-                        "status-item-live-preview"
-                    )
-
-                    AppearanceEditorSection(
-                        appearance: panelAppearance,
-                        title: "状态栏显示层",
-                        subtitle: "当前主题独立保存"
-                    ) {
-                        VStack(spacing: 11) {
-                            ForEach(
-                                StatusItemEditorField.allCases
-                            ) { field in
-                                BrutalSlider(
-                                    title: field.title,
-                                    value:
-                                        statusGeometryBinding(
-                                            field
-                                        ),
-                                    range: field.range,
-                                    step: field.step,
-                                    valueText: {
-                                        Self.points(
-                                            $0,
-                                            fractionDigits:
-                                                field
-                                                    .fractionDigits
-                                        )
-                                    },
-                                    tint: panelAppearance
-                                        .primaryStateColor
-                                        .swiftUIColor,
-                                    thumb: panelAppearance
-                                        .actionAccentColor
-                                        .swiftUIColor,
-                                    onEditingChanged: {
-                                        store
-                                            .sliderEditingChanged(
-                                                $0
-                                            )
-                                    }
+                        VStack(
+                            alignment: .leading,
+                            spacing: 9
+                        ) {
+                            Text("实时预览")
+                                .appearanceEditorFont(
+                                    size: 9,
+                                    weight: .black,
+                                    design: .monospaced
                                 )
-                                .accessibilityIdentifier(
-                                    field
-                                        .accessibilityIdentifier
+                            HStack {
+                                Spacer()
+                                ThemeStatusChromePreview(
+                                    appearance: statusAppearance
                                 )
+                                Spacer()
                             }
                         }
-                    }
-                    .id(
-                        AppearanceEditorInitialScrollTarget
-                            .statusItemControls
-                    )
+                        .padding(12)
+                        .brutalSectionDivider()
+                        .accessibilityIdentifier(
+                            "status-item-live-preview"
+                        )
 
-                    Text(
-                        "最终尺寸会根据系统菜单栏高度自动适配"
-                    )
-                    .appearanceEditorFont(
-                        size: 8,
-                        weight: .bold,
-                        design: .monospaced
-                    )
-                    .padding(12)
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: .leading
-                    )
-                    .background(
-                        BrutalEditorStyle.paleTeal
-                    )
-                }
+                        AppearanceEditorSection(
+                            appearance: panelAppearance,
+                            title: "状态栏显示层",
+                            subtitle: "当前主题独立保存"
+                        ) {
+                            VStack(spacing: 11) {
+                                ForEach(
+                                    StatusItemEditorField.allCases
+                                ) { field in
+                                    BrutalSlider(
+                                        title: field.title,
+                                        value:
+                                            statusGeometryBinding(
+                                                field
+                                            ),
+                                        range: field.range,
+                                        step: field.step,
+                                        valueText: {
+                                            Self.points(
+                                                $0,
+                                                fractionDigits:
+                                                    field
+                                                        .fractionDigits
+                                            )
+                                        },
+                                        tint: panelAppearance
+                                            .primaryStateColor
+                                            .swiftUIColor,
+                                        thumb: panelAppearance
+                                            .actionAccentColor
+                                            .swiftUIColor,
+                                        onEditingChanged: {
+                                            store
+                                                .sliderEditingChanged(
+                                                    $0
+                                                )
+                                        }
+                                    )
+                                    .accessibilityIdentifier(
+                                        field
+                                            .accessibilityIdentifier
+                                    )
+                                }
+                            }
+                        }
+                        .id(
+                            AppearanceEditorInitialScrollTarget
+                                .statusItemControls
+                        )
+
+                        Text(
+                            "最终尺寸会根据系统菜单栏高度自动适配"
+                        )
+                        .appearanceEditorFont(
+                            size: 8,
+                            weight: .bold,
+                            design: .monospaced
+                        )
+                        .padding(12)
+                        .frame(
+                            maxWidth: .infinity,
+                            alignment: .leading
+                        )
+                        .background(
+                            BrutalEditorStyle.paleTeal
+                        )
+
+                        if initialScrollTarget == .statusItemControls {
+                            Color.clear
+                                .frame(
+                                    height:
+                                        AppearanceEditorDocumentationMetrics
+                                            .trailingScrollSpace(
+                                                for: initialScrollTarget
+                                            )
+                                )
+                                .accessibilityHidden(true)
+                        }
+                    }
                 }
                 .scrollIndicators(
                     .visible,

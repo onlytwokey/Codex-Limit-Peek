@@ -32,9 +32,19 @@ struct DocumentationPreviewSeamTests {
             data: sharedData,
             targetWidth: 360
         )
+        let reference = ThemePanelDisplayData.reference(for: .bold)
+        let defaultFull = ThemePanelChromePreview(
+            appearance: appearance
+        )
+        let defaultScaled = ScaledThemePanelChromePreview(
+            appearance: appearance,
+            targetWidth: 360
+        )
 
         #expect(full.data == sharedData)
         #expect(scaled.data == sharedData)
+        #expect(defaultFull.data == reference)
+        #expect(defaultScaled.data == reference)
     }
 
     @Test
@@ -51,6 +61,25 @@ struct DocumentationPreviewSeamTests {
         #expect(
             environment.appearanceEditorInitialScrollTarget
                 == .themeSelector
+        )
+    }
+
+    @Test
+    func statusItemAnchorAddsOnlyDocumentationTrailingSpace() {
+        #expect(
+            AppearanceEditorDocumentationMetrics.trailingScrollSpace(
+                for: nil
+            ) == 0
+        )
+        #expect(
+            AppearanceEditorDocumentationMetrics.trailingScrollSpace(
+                for: .themeSelector
+            ) == 0
+        )
+        #expect(
+            AppearanceEditorDocumentationMetrics.trailingScrollSpace(
+                for: .statusItemControls
+            ) >= MoreOverlayMetrics.statusItemSize.height
         )
     }
 }
