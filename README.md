@@ -258,22 +258,27 @@ app-server 不可用时，应用会检查以下本地来源：
 │   └── validate-doc-images.sh
 ├── Sources/
 │   └── CodexLimitPeek/
-│       ├── AppServerQuotaProvider.swift
-│       ├── AppearanceColorPanelCoordinator.swift
-│       ├── AppearanceEditorView.swift
-│       ├── AppearanceStore.swift
-│       ├── AppearanceTheme.swift
-│       ├── CodexLimitPeekApp.swift
-│       ├── MoreOverlayPresenter.swift
-│       ├── MoreOverlayViews.swift
-│       ├── RefreshReliability.swift
-│       ├── ThemeChromeViews.swift
-│       └── ThemeVisualRecipe.swift
+│       ├── App/
+│       │   ├── AppDelegate.swift
+│       │   └── CodexLimitPeekApp.swift
+│       ├── Quota/
+│       │   ├── QuotaStore.swift
+│       │   └── …
+│       ├── MenuBar/
+│       │   ├── CompactStatusItemView.swift
+│       │   └── …
+│       └── Appearance/
+│           ├── AppearanceStore.swift
+│           ├── ThemeChromeViews.swift
+│           └── Editor/
+│               ├── AppearanceEditorView.swift
+│               └── …
 └── Tests/
     └── CodexLimitPeekTests/
-        ├── DocumentationPreviewRenderer.swift
-        ├── DocumentationPreviewRendererTests.swift
-        └── …
+        ├── Application/
+        ├── Quota/
+        ├── Appearance/
+        └── Documentation/
 ```
 
 ## 系统要求
