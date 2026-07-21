@@ -1,3 +1,5 @@
+**简体中文** | [English](README.en.md)
+
 <div align="center">
 
 # Codex Limit Peek
@@ -250,6 +252,7 @@ README 引用。
 .
 ├── Package.swift
 ├── README.md
+├── README.en.md
 ├── LICENSE
 ├── NOTICE.md
 ├── scripts/

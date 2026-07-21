@@ -1,6 +1,6 @@
 # English README Design
 
-**Status:** Approved for implementation
+**Status:** Implemented and locally validated
 
 **Date:** 2026-07-21
 
@@ -152,3 +152,26 @@ navigation, and shared image contracts, but it cannot prove semantic
 translation parity. Future feature-documentation changes must update both
 files in the same commit and should compare their heading structure during
 review.
+
+## Validation Record
+
+Local verification completed on 2026-07-21:
+
+- `README.md` changed only for language navigation and the bilingual project
+  tree entries.
+- `README.en.md` mirrors all 18 headings and all four production-backed image
+  positions from the Chinese document.
+- Both files contain four image tags, three balanced `<details>` sections,
+  nine balanced code blocks, and one Mermaid graph.
+- All fenced code-block contents, numeric tokens, and inline code identifiers
+  match between the two languages.
+- Every repository-relative Markdown link and HTML image source resolves to
+  an existing path.
+- Chinese text in the English file is limited to the language-navigation
+  label and the production UI string `未同步`.
+- `bash -n scripts/*.sh`, `scripts/validate-doc-images.sh`, and
+  `git diff --check` pass.
+- No documentation image was regenerated or modified.
+
+GitHub validation remains pending until the local implementation commit is
+explicitly authorized for push.

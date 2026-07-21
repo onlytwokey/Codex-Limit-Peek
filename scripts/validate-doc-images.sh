@@ -126,6 +126,40 @@ check_png() {
     || fail "documentation image exceeds 3 MiB: $path"
 }
 
+check_readme_contract() {
+  local readme="$1"
+  local language_navigation="$2"
+  local navigation_count
+  local reference
+  local reference_count
+  shift 2
+
+  [[ -f "$readme" ]] \
+    || fail "missing README: $readme"
+
+  navigation_count="$(
+    count_literal_occurrences "$language_navigation" "$readme"
+  )"
+  [[ "$navigation_count" == "1" ]] \
+    || fail \
+      "README must contain exactly one language navigation: $readme"
+
+  for reference in "$@"; do
+    reference_count="$(
+      count_literal_occurrences "$reference" "$readme"
+    )"
+    [[ "$reference_count" == "1" ]] \
+      || fail \
+        "README must contain exactly one image reference: $reference"
+  done
+
+  if grep -Eq \
+    '(quota-states|refresh-states)\.svg' \
+    "$readme"; then
+    fail "README still references an obsolete documentation SVG: $readme"
+  fi
+}
+
 total_bytes=0
 for ((index = 0; index < ${#PATHS[@]}; index += 1)); do
   check_png \
@@ -140,31 +174,27 @@ done
   || fail "documentation images exceed 5 MiB combined"
 
 if (( check_repository_contract )); then
-  README="$ROOT_DIR/README.md"
-  required_references=(
+  required_chinese_references=(
     '<img src="docs/images/panel-preview.png" alt="LOUD、BOLD、FROST 三套主题的状态栏显示层与额度面板预览" width="860">'
     '<img src="docs/images/quota-states-loud.png" alt="LOUD 主题下正常、警告和危险额度状态的生产菜单栏显示层" width="860">'
     '<img src="docs/images/refresh-states-loud.png" alt="LOUD 主题下双窗口与单窗口（仅周额度示例）的实时、确认中和已确认刷新状态" width="860">'
     '<img src="docs/images/appearance-settings-loud.png" alt="LOUD 主题的基础色板、面板参数、状态栏显示层和高级状态颜色设置" width="720">'
   )
+  required_english_references=(
+    '<img src="docs/images/panel-preview.png" alt="LOUD, BOLD, and FROST menu bar status items and quota panel previews" width="860">'
+    '<img src="docs/images/quota-states-loud.png" alt="Production menu bar status items for normal, warning, and danger quota states in the LOUD theme" width="860">'
+    '<img src="docs/images/refresh-states-loud.png" alt="Live, confirming, and confirmed refresh states for dual-window and weekly-only layouts in the LOUD theme" width="860">'
+    '<img src="docs/images/appearance-settings-loud.png" alt="LOUD theme settings for the base palette, panel controls, menu bar status item, and advanced state colors" width="720">'
+  )
 
-  [[ -f "$README" ]] \
-    || fail "missing README: $README"
-
-  for reference in "${required_references[@]}"; do
-    reference_count="$(
-      count_literal_occurrences "$reference" "$README"
-    )"
-    [[ "$reference_count" == "1" ]] \
-      || fail \
-        "README must contain exactly one image reference: $reference"
-  done
-
-  if grep -Eq \
-    '(quota-states|refresh-states)\.svg' \
-    "$README"; then
-    fail "README still references an obsolete documentation SVG"
-  fi
+  check_readme_contract \
+    "$ROOT_DIR/README.md" \
+    '**简体中文** | [English](README.en.md)' \
+    "${required_chinese_references[@]}"
+  check_readme_contract \
+    "$ROOT_DIR/README.en.md" \
+    '[简体中文](README.md) | **English**' \
+    "${required_english_references[@]}"
 
   for asset in \
     "$ROOT_DIR/docs/images/quota-states.svg" \
