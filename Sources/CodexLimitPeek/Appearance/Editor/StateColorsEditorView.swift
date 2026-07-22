@@ -200,7 +200,10 @@ struct StateColorsEditorView: View {
         AppearanceColorRow(
             title: title,
             selectedColor: store.color(for: token),
-            swatches: AppearanceEditorPalette.swatches(for: token),
+            swatches: AppearanceEditorPalette.swatches(
+                for: token,
+                theme: store.selectedTheme
+            ),
             onSelectSwatch: { color in
                 store.setColor(color, for: token)
             },

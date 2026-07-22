@@ -206,7 +206,8 @@ enum StatusItemEditorField:
 
 enum AppearanceEditorPalette {
     static func swatches(
-        for token: AppearanceColorToken
+        for token: AppearanceColorToken,
+        theme: AppearanceThemeID
     ) -> [AppearanceColor] {
         let colors: [AppearanceColor]
         switch token {
@@ -214,7 +215,10 @@ enum AppearanceEditorPalette {
             colors = [
                 AppearanceColor(hex: 0xFFE36E),
                 AppearanceColor(hex: 0xF7F3E8),
-                AppearanceColor(hex: 0xDDF3F8, alpha: 0.72),
+                AppearanceColor(
+                    hex: 0xDDF3F8,
+                    alpha: theme == .frost ? 0.72 : 1
+                ),
                 AppearanceColor(hex: 0xFFDDE5),
                 AppearanceColor(hex: 0xE7DFFF)
             ]

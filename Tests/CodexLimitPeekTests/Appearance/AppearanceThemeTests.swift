@@ -32,6 +32,38 @@ struct AppearanceThemeTests {
     }
 
     @Test
+    func backgroundPresetOpacityMatchesThemeMaterialSemantics() {
+        let opaqueBlue = AppearanceColor(hex: 0xDDF3F8)
+        let translucentBlue = AppearanceColor(hex: 0xDDF3F8, alpha: 0.72)
+
+        for theme in [AppearanceThemeID.loud, .bold] {
+            let preset = AppearanceEditorPalette.swatches(
+                for: .background,
+                theme: theme
+            )[2]
+            #expect(preset == opaqueBlue)
+
+            var profile = AppearanceProfile.default(for: theme)
+            profile.palette.background = preset
+            let resolved = AppearanceResolver.panel(
+                profile: profile,
+                primaryRemainingPercent: 81,
+                weeklyRemainingPercent: 49,
+                isUnavailable: false
+            )
+            #expect(resolved.visuals.panelFill == .solid)
+            #expect(resolved.backgroundColor.alpha == 1)
+        }
+
+        #expect(
+            AppearanceEditorPalette.swatches(
+                for: .background,
+                theme: .frost
+            )[2] == translucentBlue
+        )
+    }
+
+    @Test
     func everyThemeHasAnIndependentApprovedActionAccent() {
         #expect(
             AppearanceProfile.default(for: .loud).palette.actionAccent
