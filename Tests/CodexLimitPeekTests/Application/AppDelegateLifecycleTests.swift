@@ -17,8 +17,15 @@ struct AppDelegateLifecycleTests {
         #expect(delegate.isPanelWindowLoaded)
         #expect(!delegate.isMoreOverlayWindowLoaded)
         #expect(firstPanel === secondPanel)
+        #expect(!firstPanel.ignoresMouseEvents)
+
+        let interactionAlpha = firstPanel.backgroundColor.alphaComponent
+        #expect(interactionAlpha > 0)
+        #expect(interactionAlpha <= 0.001)
+
         let childWindows = try #require(firstPanel.childWindows)
         #expect(childWindows.count == 1)
+        #expect(childWindows[0].backgroundColor.alphaComponent == 0)
         #expect(childWindows[0].ignoresMouseEvents)
         #expect(childWindows[0].level == firstPanel.level)
     }

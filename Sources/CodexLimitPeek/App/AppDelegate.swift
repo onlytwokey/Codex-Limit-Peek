@@ -91,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        panel.backgroundColor = .clear
+        panel.backgroundColor = NSColor(calibratedWhite: 0, alpha: 0.001)
         panel.isOpaque = false
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
