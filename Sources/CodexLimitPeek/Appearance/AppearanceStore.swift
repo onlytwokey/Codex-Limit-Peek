@@ -10,6 +10,8 @@ enum AppearanceSaveFeedbackState: Equatable, Sendable {
 enum AppearancePersistenceKey {
     static let selectedTheme = "appearance.selectedTheme"
     static let editorFontScale = "appearance.editorFontScale.v1"
+    static let opaqueBackgroundPresetMigration =
+        "appearance.migration.opaqueBackgroundPreset.v1"
 
     static func profile(_ theme: AppearanceThemeID) -> String {
         "appearance.profile.\(theme.rawValue).v3"
@@ -328,6 +330,7 @@ final class AppearanceStore: ObservableObject {
             loaded[theme] = .default(for: theme)
         }
         profiles = loaded
+        repairRetiredTranslucentBackgroundPresetIfNeeded()
     }
 
     var currentProfile: AppearanceProfile {
@@ -424,6 +427,52 @@ final class AppearanceStore: ObservableObject {
         cancelPendingSave()
         activeSliderEditCount = 0
         persist()
+    }
+
+    private func repairRetiredTranslucentBackgroundPresetIfNeeded() {
+        guard
+            !defaults.bool(
+                forKey: AppearancePersistenceKey.opaqueBackgroundPresetMigration
+            )
+        else {
+            return
+        }
+
+        let retired = AppearanceColor(hex: 0xDDF3F8, alpha: 0.72)
+        let replacement = AppearanceColor(hex: 0xDDF3F8)
+        var repairedProfiles = profiles
+        var encodedRepairs: [(key: String, data: Data)] = []
+
+        for theme in [AppearanceThemeID.loud, .bold] {
+            guard
+                var profile = repairedProfiles[theme],
+                profile.palette.background == retired
+            else {
+                continue
+            }
+
+            profile.palette.background = replacement
+            let validated = profile.validated(for: theme)
+            guard let data = try? encoder.encode(validated) else {
+                return
+            }
+            repairedProfiles[theme] = validated
+            encodedRepairs.append(
+                (
+                    key: AppearancePersistenceKey.profile(theme),
+                    data: data
+                )
+            )
+        }
+
+        profiles = repairedProfiles
+        for repair in encodedRepairs {
+            defaults.set(repair.data, forKey: repair.key)
+        }
+        defaults.set(
+            true,
+            forKey: AppearancePersistenceKey.opaqueBackgroundPresetMigration
+        )
     }
 
     private func markChanged(

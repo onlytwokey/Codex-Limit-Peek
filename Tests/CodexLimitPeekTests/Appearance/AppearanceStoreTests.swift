@@ -328,6 +328,71 @@ struct AppearanceStoreTests {
     }
 
     @Test @MainActor
+    func repairsRetiredTranslucentBackgroundPresetInSolidThemes() throws {
+        let defaults = isolatedDefaults()
+        let retired = AppearanceColor(hex: 0xDDF3F8, alpha: 0.72)
+        let replacement = AppearanceColor(hex: 0xDDF3F8)
+
+        var loud = AppearanceProfile.default(for: .loud)
+        loud.palette.background = retired
+        loud.geometry.shadowDepth = 3
+        var bold = AppearanceProfile.default(for: .bold)
+        bold.palette.background = retired
+        var frost = AppearanceProfile.default(for: .frost)
+        frost.palette.background = retired
+
+        for profile in [loud, bold, frost] {
+            defaults.set(
+                try JSONEncoder().encode(profile),
+                forKey: AppearancePersistenceKey.profile(profile.themeID)
+            )
+        }
+
+        let repaired = AppearanceStore(defaults: defaults)
+        #expect(repaired.profile(for: .loud).palette.background == replacement)
+        #expect(repaired.profile(for: .bold).palette.background == replacement)
+        #expect(repaired.profile(for: .frost).palette.background == retired)
+        #expect(repaired.profile(for: .loud).geometry.shadowDepth == 3)
+        #expect(
+            defaults.bool(
+                forKey: AppearancePersistenceKey.opaqueBackgroundPresetMigration
+            )
+        )
+
+        let restored = AppearanceStore(defaults: defaults)
+        #expect(restored.profile(for: .loud).palette.background == replacement)
+        #expect(restored.profile(for: .bold).palette.background == replacement)
+        #expect(restored.profile(for: .frost).palette.background == retired)
+    }
+
+    @Test @MainActor
+    func backgroundPresetMigrationPreservesOtherAndLaterCustomAlpha() throws {
+        let defaults = isolatedDefaults()
+        var nonmatching = AppearanceProfile.default(for: .loud)
+        nonmatching.palette.background = AppearanceColor(
+            hex: 0xDDF3F8,
+            alpha: 0.71
+        )
+        defaults.set(
+            try JSONEncoder().encode(nonmatching),
+            forKey: AppearancePersistenceKey.profile(.loud)
+        )
+
+        let firstLoad = AppearanceStore(defaults: defaults)
+        #expect(
+            firstLoad.profile(for: .loud).palette.background
+                == nonmatching.palette.background
+        )
+
+        let deliberate = AppearanceColor(hex: 0xDDF3F8, alpha: 0.72)
+        firstLoad.setColor(deliberate, for: .background, in: .loud)
+        firstLoad.flushPendingSave()
+
+        let restored = AppearanceStore(defaults: defaults)
+        #expect(restored.profile(for: .loud).palette.background == deliberate)
+    }
+
+    @Test @MainActor
     func everyEditableColorTokenRoundTripsThroughTheStore() {
         let defaults = isolatedDefaults()
         let store = AppearanceStore(defaults: defaults)
