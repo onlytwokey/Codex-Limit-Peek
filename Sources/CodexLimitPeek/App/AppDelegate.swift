@@ -4,21 +4,96 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let quotaStore = QuotaStore()
-    private let appearanceStore = AppearanceStore()
-    private lazy var moreOverlayPresenter = MoreOverlayPresenter(
-        quotaStore: quotaStore,
-        appearanceStore: appearanceStore
-    )
+#if DEVELOPER_TOOLS
+    private let developerPreviewLaunchConfiguration:
+        DeveloperPreviewLaunchConfiguration?
+    private let developerPreviewLaunchError:
+        DeveloperPreviewLaunchError?
+    private var developerPreviewCoordinator:
+        DeveloperPreviewCoordinator?
+#endif
+    private lazy var quotaStore = QuotaStore()
+    private lazy var appearanceStore = AppearanceStore()
+    private lazy var moreOverlayPresenter: MoreOverlayPresenter = {
+#if DEVELOPER_TOOLS
+        MoreOverlayPresenter(
+            quotaStore: quotaStore,
+            appearanceStore: appearanceStore,
+            onOpenDeveloperPreview: { [weak self] in
+                self?.showDeveloperPreview(
+                    exitsWhenWindowCloses: false,
+                    readinessFilePath: nil
+                )
+            }
+        )
+#else
+        MoreOverlayPresenter(
+            quotaStore: quotaStore,
+            appearanceStore: appearanceStore
+        )
+#endif
+    }()
     private var statusItem: NSStatusItem?
     private var statusView: CompactStatusItemView?
     private var panelWindow: NSPanel?
     private var panelShadowWindow: NSPanel?
     private var outsideClickMonitor: Any?
     private var snapshotCancellable: AnyCancellable?
+    private var productionRuntimeStarted = false
+
+    override convenience init() {
+        self.init(arguments: CommandLine.arguments)
+    }
+
+    init(arguments: [String]) {
+#if DEVELOPER_TOOLS
+        do {
+            developerPreviewLaunchConfiguration = try
+                DeveloperPreviewLaunchConfiguration.resolve(
+                arguments: arguments
+            )
+            developerPreviewLaunchError = nil
+        } catch let error as DeveloperPreviewLaunchError {
+            developerPreviewLaunchConfiguration = nil
+            developerPreviewLaunchError = error
+        } catch {
+            developerPreviewLaunchConfiguration = nil
+            developerPreviewLaunchError = .unsupportedOption(
+                error.localizedDescription
+            )
+        }
+#endif
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+#if DEVELOPER_TOOLS
+        if let developerPreviewLaunchError {
+            writeDeveloperPreviewLaunchError(
+                developerPreviewLaunchError
+            )
+            NSApp.terminate(nil)
+            return
+        }
+#endif
+
         NSApp.setActivationPolicy(.accessory)
+
+#if DEVELOPER_TOOLS
+        if let developerPreviewLaunchConfiguration {
+            showDeveloperPreview(
+                exitsWhenWindowCloses:
+                    developerPreviewLaunchConfiguration
+                        .exitsWhenWindowCloses,
+                readinessFilePath:
+                    developerPreviewLaunchConfiguration
+                        .readinessFilePath
+            )
+            return
+        }
+#endif
+
+        productionRuntimeStarted = true
         configureStatusItem()
         configureWakeRefreshObservers()
         quotaStore.start()
@@ -34,6 +109,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+#if DEVELOPER_TOOLS
+        developerPreviewCoordinator?.tearDown()
+        developerPreviewCoordinator = nil
+#endif
+
+        guard productionRuntimeStarted else { return }
         moreOverlayPresenter.close()
         appearanceStore.flushPendingSave()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
@@ -59,8 +140,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     var isMoreOverlayWindowLoaded: Bool {
-        moreOverlayPresenter.isWindowPairLoaded
+        guard productionRuntimeStarted else { return false }
+        return moreOverlayPresenter.isWindowPairLoaded
     }
+
+#if DEVELOPER_TOOLS
+    var developerPreviewConfigurationForTesting:
+        DeveloperPreviewLaunchConfiguration?
+    {
+        developerPreviewLaunchConfiguration
+    }
+
+    var developerPreviewLaunchErrorForTesting:
+        DeveloperPreviewLaunchError?
+    {
+        developerPreviewLaunchError
+    }
+
+    var isDeveloperPreviewWindowLoaded: Bool {
+        developerPreviewCoordinator?.isWindowLoaded ?? false
+    }
+
+    var isProductionRuntimeStartedForTesting: Bool {
+        productionRuntimeStarted
+    }
+
+    func openDeveloperPreviewForTesting() {
+        showDeveloperPreview(
+            exitsWhenWindowCloses: false,
+            readinessFilePath: nil
+        )
+    }
+
+    func closeDeveloperPreviewForTesting() {
+        developerPreviewCoordinator?.tearDown()
+        developerPreviewCoordinator = nil
+    }
+#endif
 
     var moreOverlayPageForTesting: MoreOverlayPage {
         moreOverlayPresenter.page
@@ -305,6 +421,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.outsideClickMonitor = nil
         }
     }
+
+#if DEVELOPER_TOOLS
+    private func showDeveloperPreview(
+        exitsWhenWindowCloses: Bool,
+        readinessFilePath: String?
+    ) {
+        if productionRuntimeStarted {
+            closePanel()
+            moreOverlayPresenter.close()
+        }
+
+        if let developerPreviewCoordinator {
+            developerPreviewCoordinator.show()
+            writeDeveloperPreviewReadinessFile(
+                at: readinessFilePath
+            )
+            return
+        }
+
+        let coordinator = DeveloperPreviewCoordinator(
+            onClose: { [weak self] in
+                self?.developerPreviewCoordinator = nil
+                if exitsWhenWindowCloses {
+                    NSApplication.shared.terminate(nil)
+                }
+            }
+        )
+        developerPreviewCoordinator = coordinator
+        coordinator.show()
+        writeDeveloperPreviewReadinessFile(at: readinessFilePath)
+    }
+
+    private func writeDeveloperPreviewReadinessFile(
+        at path: String?
+    ) {
+        guard let path else { return }
+
+        do {
+            try Data("ready\n".utf8).write(
+                to: URL(fileURLWithPath: path),
+                options: .withoutOverwriting
+            )
+        } catch {
+            let message = "Codex Limit Peek could not signal developer "
+                + "preview readiness: \(error)\n"
+            FileHandle.standardError.write(Data(message.utf8))
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
+    private func writeDeveloperPreviewLaunchError(
+        _ error: DeveloperPreviewLaunchError
+    ) {
+        let message = "Codex Limit Peek developer launch failed: \(error)\n"
+        FileHandle.standardError.write(Data(message.utf8))
+    }
+#endif
 
     @objc private func refreshAfterSleepOrUnlock(_ notification: Notification) {
         quotaStore.refresh()

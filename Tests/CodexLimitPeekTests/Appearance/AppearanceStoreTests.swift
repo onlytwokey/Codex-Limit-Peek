@@ -155,7 +155,8 @@ struct AppearanceStoreTests {
                 fontSize: 8.5,
                 outlineWidth: 0.5,
                 cornerRadius: 2,
-                shadowDepth: 1,
+                shadowHorizontalOffset: -1,
+                shadowVerticalOffset: 1,
                 shadowBlur: 0.5,
                 horizontalPadding: 3,
                 tagHeight: 15
@@ -164,7 +165,8 @@ struct AppearanceStoreTests {
                 fontSize: 11,
                 outlineWidth: 2,
                 cornerRadius: 6,
-                shadowDepth: 3,
+                shadowHorizontalOffset: 3,
+                shadowVerticalOffset: -3,
                 shadowBlur: 2,
                 horizontalPadding: 8,
                 tagHeight: 18
@@ -173,7 +175,8 @@ struct AppearanceStoreTests {
                 fontSize: 13.5,
                 outlineWidth: 3.5,
                 cornerRadius: 11,
-                shadowDepth: 5.5,
+                shadowHorizontalOffset: -5.5,
+                shadowVerticalOffset: -4.5,
                 shadowBlur: 7.5,
                 horizontalPadding: 13.5,
                 tagHeight: 21.5
@@ -198,6 +201,79 @@ struct AppearanceStoreTests {
     }
 
     @Test @MainActor
+    func statusItemStyleRoundTripsIndependentlyForEveryTheme() {
+        let defaults = isolatedDefaults()
+        let store = AppearanceStore(defaults: defaults)
+        let expected: [AppearanceThemeID: StatusItemStyle] = [
+            .loud: StatusItemStyle(
+                primaryTextColor: AppearanceColor(hex: 0x123456),
+                weeklyTextColor: AppearanceColor(hex: 0x654321),
+                shadowColor: AppearanceColor(hex: 0xABCDEF),
+                shadowOpacity: 0.2
+            ),
+            .bold: StatusItemStyle(
+                primaryTextColor: AppearanceColor(hex: 0x2468AC),
+                weeklyTextColor: nil,
+                shadowColor: AppearanceColor(hex: 0x13579B),
+                shadowOpacity: 0.45
+            ),
+            .frost: StatusItemStyle(
+                primaryTextColor: nil,
+                weeklyTextColor: AppearanceColor(hex: 0xFFEEDD),
+                shadowColor: nil,
+                shadowOpacity: 0.8
+            )
+        ]
+
+        for theme in AppearanceThemeID.allCases {
+            store.select(theme)
+            store.updateCurrent {
+                $0.statusItemStyle = expected[theme]!
+            }
+        }
+        store.flushPendingSave()
+
+        let restored = AppearanceStore(defaults: defaults)
+        for theme in AppearanceThemeID.allCases {
+            #expect(
+                restored.profile(for: theme).statusItemStyle
+                    == expected[theme]
+            )
+        }
+    }
+
+    @Test @MainActor
+    func statusColorHelpersWriteOpaqueOverridesToCapturedTheme() {
+        let defaults = isolatedDefaults()
+        let store = AppearanceStore(defaults: defaults)
+        let translucent = AppearanceColor(
+            red: 0.2,
+            green: 0.4,
+            blue: 0.6,
+            alpha: 0.25
+        )
+
+        store.select(.loud)
+        let initialRevision = store.revision
+        store.setStatusColor(
+            translucent,
+            for: .weeklyText,
+            in: .bold
+        )
+
+        #expect(store.selectedTheme == .loud)
+        #expect(store.revision == initialRevision)
+        #expect(
+            store.statusColor(for: .weeklyText, in: .bold)
+                == translucent.withAlpha(1)
+        )
+        #expect(store.statusColor(for: .weeklyText, in: .loud) == nil)
+
+        store.resetStatusColor(.weeklyText, in: .bold)
+        #expect(store.statusColor(for: .weeklyText, in: .bold) == nil)
+    }
+
+    @Test @MainActor
     func resetOnlyChangesTheSelectedTheme() {
         let defaults = isolatedDefaults()
         let store = AppearanceStore(defaults: defaults)
@@ -205,11 +281,15 @@ struct AppearanceStoreTests {
         store.updateCurrent {
             $0.geometry.fontScale = 1.2
             $0.statusItemGeometry.fontSize = 13
+            $0.statusItemStyle.primaryTextColor =
+                AppearanceColor(hex: 0x123456)
         }
         store.select(.bold)
         store.updateCurrent {
             $0.geometry.fontScale = 0.9
             $0.statusItemGeometry.fontSize = 8.5
+            $0.statusItemStyle.shadowColor =
+                AppearanceColor(hex: 0x654321)
         }
 
         store.resetCurrentTheme()
@@ -223,6 +303,14 @@ struct AppearanceStoreTests {
         #expect(
             store.profile(for: .loud).statusItemGeometry.fontSize == 13
         )
+        #expect(
+            store.profile(for: .bold).statusItemStyle
+                == StatusItemStyle.default(for: .bold)
+        )
+        #expect(
+            store.profile(for: .loud).statusItemStyle.primaryTextColor
+                == AppearanceColor(hex: 0x123456)
+        )
         #expect(store.editorFontScale == 1.3)
 
         store.flushPendingSave()
@@ -235,6 +323,14 @@ struct AppearanceStoreTests {
         )
         #expect(
             restored.profile(for: .loud).statusItemGeometry.fontSize == 13
+        )
+        #expect(
+            restored.profile(for: .bold).statusItemStyle
+                == StatusItemStyle.default(for: .bold)
+        )
+        #expect(
+            restored.profile(for: .loud).statusItemStyle.primaryTextColor
+                == AppearanceColor(hex: 0x123456)
         )
         #expect(restored.editorFontScale == 1.3)
     }
@@ -420,7 +516,7 @@ struct AppearanceStoreTests {
     }
 
     @Test @MainActor
-    func versionOneProfileMigratesToVersionThreeWithoutLosingCustomColors() throws {
+    func versionOneProfileMigratesToVersionFourWithoutLosingCustomColors() throws {
         let defaults = isolatedDefaults()
         var legacy = LegacyAppearanceProfileV1.default(for: .bold)
         legacy.palette.background = AppearanceColor(hex: 0xABCDEF)
@@ -432,11 +528,78 @@ struct AppearanceStoreTests {
         let store = AppearanceStore(defaults: defaults)
         let migrated = store.profile(for: .bold)
 
-        #expect(migrated.schemaVersion == 3)
+        #expect(migrated.schemaVersion == 4)
         #expect(migrated.palette.background == AppearanceColor(hex: 0xABCDEF))
         #expect(
             migrated.palette.actionAccent
                 == AppearanceColor(hex: 0xFF8A82)
+        )
+    }
+
+    @Test @MainActor
+    func versionThreeProfileMigratesToVersionFourAndKeepsLegacyBytes() throws {
+        let defaults = isolatedDefaults()
+        var legacy = LegacyAppearanceProfileV3.default(for: .frost)
+        legacy.palette.background = AppearanceColor(hex: 0xABCDEF)
+        legacy.geometry.cornerRadius = 21
+        legacy.statusItemGeometry = LegacyStatusItemGeometryV3(
+            fontSize: 12.5,
+            outlineWidth: 3,
+            cornerRadius: 19,
+            shadowDepth: 4.5,
+            shadowBlur: 16,
+            horizontalPadding: 11,
+            tagHeight: 20
+        )
+        let legacyData = try JSONEncoder().encode(legacy)
+        defaults.set(
+            legacyData,
+            forKey: AppearancePersistenceKey.legacyProfileV3(.frost)
+        )
+        defaults.set(
+            Data("broken-v4".utf8),
+            forKey: AppearancePersistenceKey.profile(.frost)
+        )
+
+        let store = AppearanceStore(defaults: defaults)
+        let migrated = store.profile(for: .frost)
+
+        #expect(migrated.schemaVersion == 4)
+        #expect(migrated.themeID == .frost)
+        #expect(migrated.palette.background == AppearanceColor(hex: 0xABCDEF))
+        #expect(migrated.geometry.cornerRadius == 21)
+        #expect(migrated.statusItemGeometry.fontSize == 12.5)
+        #expect(migrated.statusItemGeometry.outlineWidth == 3)
+        #expect(migrated.statusItemGeometry.cornerRadius == 19)
+        #expect(migrated.statusItemGeometry.shadowHorizontalOffset == 4.5)
+        #expect(migrated.statusItemGeometry.shadowVerticalOffset == 4.5)
+        #expect(migrated.statusItemGeometry.shadowBlur == 16)
+        #expect(migrated.statusItemGeometry.horizontalPadding == 11)
+        #expect(migrated.statusItemGeometry.tagHeight == 20)
+        #expect(migrated.statusItemStyle.primaryTextColor == nil)
+        #expect(migrated.statusItemStyle.weeklyTextColor == nil)
+        #expect(migrated.statusItemStyle.shadowColor == nil)
+        #expect(
+            migrated.statusItemStyle.shadowOpacity
+                == ThemeVisualRecipe.default(for: .frost)
+                    .statusChip.shadow.opacity
+        )
+
+        store.flushPendingSave()
+        #expect(
+            defaults.data(
+                forKey: AppearancePersistenceKey.legacyProfileV3(.frost)
+            ) == legacyData
+        )
+        #expect(
+            try JSONDecoder().decode(
+                AppearanceProfile.self,
+                from: #require(
+                    defaults.data(
+                        forKey: AppearancePersistenceKey.profile(.frost)
+                    )
+                )
+            ).schemaVersion == 4
         )
     }
 
@@ -456,7 +619,7 @@ struct AppearanceStoreTests {
 
         let migrated = AppearanceStore(defaults: defaults).profile(for: .bold)
 
-        #expect(migrated.schemaVersion == 3)
+        #expect(migrated.schemaVersion == 4)
         #expect(migrated.geometry == legacy.geometry.clamped())
         #expect(
             migrated.statusItemGeometry == StatusItemGeometry(
@@ -472,13 +635,17 @@ struct AppearanceStoreTests {
     }
 
     @Test @MainActor
-    func malformedVersionThreeFallsBackToValidVersionTwo() throws {
+    func malformedVersionFourFallsBackToValidVersionTwo() throws {
         let defaults = isolatedDefaults()
         var legacy = LegacyAppearanceProfileV2.default(for: .frost)
         legacy.palette.background = AppearanceColor(hex: 0xABCDEF)
         defaults.set(
-            Data("broken-v3".utf8),
+            Data("broken-v4".utf8),
             forKey: AppearancePersistenceKey.profile(.frost)
+        )
+        defaults.set(
+            Data("broken-v3".utf8),
+            forKey: AppearancePersistenceKey.legacyProfileV3(.frost)
         )
         defaults.set(
             try JSONEncoder().encode(legacy),
@@ -491,11 +658,11 @@ struct AppearanceStoreTests {
             restored.profile(for: .frost).palette.background
                 == AppearanceColor(hex: 0xABCDEF)
         )
-        #expect(restored.profile(for: .frost).schemaVersion == 3)
+        #expect(restored.profile(for: .frost).schemaVersion == 4)
     }
 
     @Test @MainActor
-    func unsupportedVersionThreeFallsBackToVersionTwoAndCorrectsIdentity()
+    func unsupportedVersionFourFallsBackToVersionTwoAndCorrectsIdentity()
         throws
     {
         let defaults = isolatedDefaults()
@@ -589,7 +756,7 @@ struct AppearanceStoreTests {
     }
 
     @Test @MainActor
-    func validVersionThreeWinsOverOlderProfiles() throws {
+    func validVersionFourWinsOverOlderProfiles() throws {
         let defaults = isolatedDefaults()
         var current = AppearanceProfile.default(for: .loud)
         current.palette.background = AppearanceColor(hex: 0x123456)
@@ -682,7 +849,7 @@ struct AppearanceStoreTests {
                 forKey: AppearancePersistenceKey.legacyProfileV2(.loud)
             ) == versionTwoData
         )
-        let versionThreeData = try #require(
+        let versionFourData = try #require(
             defaults.data(
                 forKey: AppearancePersistenceKey.profile(.loud)
             )
@@ -690,8 +857,8 @@ struct AppearanceStoreTests {
         #expect(
             try JSONDecoder().decode(
                 AppearanceProfile.self,
-                from: versionThreeData
-            ).schemaVersion == 3
+                from: versionFourData
+            ).schemaVersion == 4
         )
     }
 

@@ -128,7 +128,7 @@ Appearance editing changes visual presentation only. It does not change quota th
 Using LOUD as the example, the complete appearance editor is divided into four groups:
 
 - **Panel:** Base palette, panel typography and geometry, shadow, and surface opacity.
-- **Menu bar status item:** Independent font, stroke, corner radius, shadow, horizontal padding, and height.
+- **Menu bar status item:** Separate primary and weekly text colors, shadow color and opacity, horizontal and vertical offsets, plus independent font, stroke, corner radius, horizontal padding, and height.
 - **State colors:** Normal, warning, danger, unavailable fill, and unavailable stripe colors.
 - **Settings typography:** A separate global font scale for the editor itself.
 
@@ -142,7 +142,7 @@ Using LOUD as the example, the complete appearance editor is divided into four g
 | Panel typography and geometry | Font 80%–125%, stroke 0–4 pt, corner radius 0–28 pt |
 | Settings typography | Global 90%–150% |
 | Panel shadow and surface | Shadow depth 0–10 pt, blur 0–20 pt, surface opacity 55%–100% |
-| Menu bar status item | Font 8–14 pt, stroke 0–4 pt, corner radius 0–12 pt, shadow depth 0–6 pt, blur 0–8 pt, horizontal padding 2–14 pt, height 14–22 pt |
+| Menu bar status item | Primary text color, weekly text color, shadow color, shadow opacity 0%–100%, horizontal/vertical offsets -10–10 pt, blur 0–8 pt, font 8–14 pt, stroke 0–4 pt, corner radius 0–12 pt, horizontal padding 2–14 pt, height 14–22 pt |
 | State colors | Normal, warning, danger, unavailable fill, unavailable stripe |
 | Reset | Restores only the currently selected theme |
 
@@ -150,7 +150,7 @@ Using LOUD as the example, the complete appearance editor is divided into four g
 
 ### Native Color Picker
 
-Every color setting provides preset swatches and a square “＋” button that opens the native macOS color panel. The system panel supports opacity and continuous color updates. Changes appear immediately in the current preview and are saved to the theme that was selected when the picker opened.
+Every color setting provides preset swatches and a square “＋” button that opens the native macOS color panel. Base-palette and state colors support opacity; primary text, weekly text, and shadow colors for the menu bar status item are saved as opaque colors. Continuous changes appear immediately in the current preview and are saved to the theme that was selected when the picker opened.
 
 ## Architecture
 
@@ -235,6 +235,21 @@ Common commands:
 ./scripts/restart.sh
 ./scripts/test-install.sh
 ```
+
+Switch to a Debug build with the same app identity and inspect the real panel
+with deterministic data in a standard developer window:
+
+```sh
+./scripts/run-developer-preview.sh
+```
+
+The script completes the Debug build, identifies the exact running production
+process, and stops it only after validation. Testing starts only after a window
+readiness handshake. Closing Developer Preview restores the untouched installed
+app to its original running state. The window controls theme, quota scenarios,
+and Current/Candidate; its fixtures use in-memory preferences and never write
+production settings. Release builds contain no developer entry or internal
+wiring.
 
 Regenerate and validate the README images:
 

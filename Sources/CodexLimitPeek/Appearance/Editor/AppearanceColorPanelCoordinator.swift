@@ -1,8 +1,22 @@
 import AppKit
 
+enum AppearanceColorEditTarget: Equatable, Sendable {
+    case palette(AppearanceColorToken)
+    case statusItem(StatusItemColorToken)
+
+    var allowsAlpha: Bool {
+        switch self {
+        case .palette:
+            true
+        case .statusItem:
+            false
+        }
+    }
+}
+
 struct AppearanceColorPanelEditContext: Equatable, Sendable {
     let theme: AppearanceThemeID
-    let token: AppearanceColorToken
+    let target: AppearanceColorEditTarget
 }
 
 @MainActor
@@ -165,12 +179,12 @@ protocol AppearanceColorPanelCoordinating: AnyObject {
 
     func beginEditing(
         theme: AppearanceThemeID,
-        token: AppearanceColorToken,
+        target: AppearanceColorEditTarget,
         color: AppearanceColor,
         above overlayLevel: NSWindow.Level,
         onChange: @escaping (
             AppearanceThemeID,
-            AppearanceColorToken,
+            AppearanceColorEditTarget,
             AppearanceColor
         ) -> Void
     )
@@ -194,7 +208,7 @@ final class AppearanceColorPanelCoordinator:
     private var savedState: SavedPanelState?
     private var onChange: ((
         AppearanceThemeID,
-        AppearanceColorToken,
+        AppearanceColorEditTarget,
         AppearanceColor
     ) -> Void)?
 
@@ -210,12 +224,12 @@ final class AppearanceColorPanelCoordinator:
 
     func beginEditing(
         theme: AppearanceThemeID,
-        token: AppearanceColorToken,
+        target: AppearanceColorEditTarget,
         color: AppearanceColor,
         above overlayLevel: NSWindow.Level,
         onChange: @escaping (
             AppearanceThemeID,
-            AppearanceColorToken,
+            AppearanceColorEditTarget,
             AppearanceColor
         ) -> Void
     ) {
@@ -229,11 +243,11 @@ final class AppearanceColorPanelCoordinator:
         )
         activeContext = AppearanceColorPanelEditContext(
             theme: theme,
-            token: token
+            target: target
         )
         self.onChange = onChange
         driver.color = color.nsColor
-        driver.showsAlpha = true
+        driver.showsAlpha = target.allowsAlpha
         driver.isContinuous = true
         driver.hidesOnDeactivate = false
         driver.level = NSWindow.Level(
@@ -261,10 +275,12 @@ final class AppearanceColorPanelCoordinator:
     ) {
         guard let activeContext else { return }
         var appearanceColor = AppearanceColor(nsColor: color)
-        appearanceColor.alpha = Double(alpha)
+        appearanceColor.alpha = activeContext.target.allowsAlpha
+            ? Double(alpha)
+            : 1
         onChange?(
             activeContext.theme,
-            activeContext.token,
+            activeContext.target,
             appearanceColor.clamped()
         )
     }

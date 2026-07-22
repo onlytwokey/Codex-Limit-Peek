@@ -6,14 +6,15 @@ import Testing
 
 struct StatusItemEditorTests {
     @Test
-    func exposesAllSevenApprovedFieldsInOrder() {
+    func exposesAllEightApprovedFieldsInOrder() {
         #expect(
             StatusItemEditorField.allCases.map(\.title) == [
                 "状态栏字体大小",
                 "显示层描边",
                 "显示层圆角",
-                "显示层阴影深度",
-                "显示层阴影模糊",
+                "阴影水平偏移",
+                "阴影垂直偏移",
+                "阴影模糊",
                 "显示层横向留白",
                 "显示层高度"
             ]
@@ -23,7 +24,8 @@ struct StatusItemEditorTests {
                 8...14,
                 0...4,
                 0...12,
-                0...6,
+                -10...10,
+                -10...10,
                 0...8,
                 2...14,
                 14...22
@@ -34,6 +36,7 @@ struct StatusItemEditorTests {
                 0.5,
                 0.25,
                 1,
+                0.5,
                 0.5,
                 0.5,
                 0.5,
@@ -48,6 +51,7 @@ struct StatusItemEditorTests {
                 1,
                 1,
                 1,
+                1,
                 1
             ]
         )
@@ -55,15 +59,65 @@ struct StatusItemEditorTests {
             StatusItemEditorField.allCases.map(
                 \.accessibilityIdentifier
             ) == [
-                "status-item-fontSize",
-                "status-item-outlineWidth",
-                "status-item-cornerRadius",
-                "status-item-shadowDepth",
-                "status-item-shadowBlur",
-                "status-item-horizontalPadding",
-                "status-item-tagHeight"
+                "status-item-font-size",
+                "status-item-outline-width",
+                "status-item-corner-radius",
+                "status-item-shadow-horizontal-offset",
+                "status-item-shadow-vertical-offset",
+                "status-item-shadow-blur",
+                "status-item-horizontal-padding",
+                "status-item-tag-height"
             ]
         )
+        #expect(
+            StatusItemEditorField.shadowFields == [
+                .shadowHorizontalOffset,
+                .shadowVerticalOffset,
+                .shadowBlur
+            ]
+        )
+        #expect(
+            StatusItemEditorField.geometryFields == [
+                .fontSize,
+                .outlineWidth,
+                .cornerRadius,
+                .horizontalPadding,
+                .tagHeight
+            ]
+        )
+    }
+
+    @Test @MainActor
+    func shadowOpacityBindingIsClampedAndDoesNotChangePanelGeometry() {
+        let suite = "StatusItemEditorTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AppearanceStore(defaults: defaults)
+        let editor = StatusItemEditorView(store: store, onBack: {})
+        let originalPanelGeometry = store.currentProfile.geometry
+
+        editor.statusStyleBinding(\.shadowOpacity).wrappedValue = 2
+
+        #expect(store.currentProfile.statusItemStyle.shadowOpacity == 1)
+        #expect(store.currentProfile.geometry == originalPanelGeometry)
+
+        editor.statusStyleBinding(\.shadowOpacity).wrappedValue = -1
+        #expect(store.currentProfile.statusItemStyle.shadowOpacity == 0)
+    }
+
+    @Test @MainActor
+    func explicitLowContrastTextIsReportedWithoutChangingItsColor() {
+        let suite = "StatusItemEditorTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AppearanceStore(defaults: defaults)
+        let weakColor = AppearanceColor(hex: 0x78CFC8)
+        store.setStatusColor(weakColor, for: .primaryText)
+        let editor = StatusItemEditorView(store: store, onBack: {})
+
+        #expect(editor.lowContrastLabels.contains("主额度"))
+        #expect(store.statusColor(for: .primaryText) == weakColor)
+        #expect(!editor.lowContrastLabels.contains("周额度"))
     }
 
     @Test @MainActor

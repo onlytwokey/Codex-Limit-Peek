@@ -274,6 +274,9 @@ struct ActionsPopover: View {
     @ObservedObject var appearanceStore: AppearanceStore
     let appearance: ResolvedPanelAppearance
     let onShowAppearance: () -> Void
+#if DEVELOPER_TOOLS
+    var onOpenDeveloperPreview: (@MainActor () -> Void)? = nil
+#endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -341,6 +344,24 @@ struct ActionsPopover: View {
                 )
             }
             .buttonStyle(.plain)
+
+#if DEVELOPER_TOOLS
+            if let onOpenDeveloperPreview {
+                Divider()
+
+                Button {
+                    onOpenDeveloperPreview()
+                } label: {
+                    ActionMenuRow(
+                        systemImage: "hammer.fill",
+                        title: "开发者预览",
+                        trailing: nil,
+                        appearance: appearance
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+#endif
 
             Divider()
 

@@ -211,11 +211,15 @@ struct AppearanceColorPanelCoordinatorTests {
             driver: driver
         )
         var received:
-            (AppearanceThemeID, AppearanceColorToken, AppearanceColor)?
+            (
+                AppearanceThemeID,
+                AppearanceColorEditTarget,
+                AppearanceColor
+            )?
 
         coordinator.beginEditing(
             theme: .bold,
-            token: .surface,
+            target: .palette(.surface),
             color: AppearanceColor(hex: 0xFFFFFF),
             above: .popUpMenu
         ) {
@@ -232,11 +236,58 @@ struct AppearanceColorPanelCoordinatorTests {
         )
 
         #expect(received?.0 == .bold)
-        #expect(received?.1 == .surface)
+        #expect(received?.1 == .palette(.surface))
         #expect(abs((received?.2.red ?? 0) - 0.2) < 0.000_001)
         #expect(abs((received?.2.green ?? 0) - 0.4) < 0.000_001)
         #expect(abs((received?.2.blue ?? 0) - 0.6) < 0.000_001)
         #expect(abs((received?.2.alpha ?? 0) - 0.35) < 0.000_001)
+    }
+
+    @Test @MainActor
+    func statusItemTargetsHideAlphaAndAlwaysEmitOpaqueColors() {
+        let driver = FakeAppearanceColorPanelDriver()
+        driver.showsAlpha = true
+        let coordinator = AppearanceColorPanelCoordinator(
+            driver: driver
+        )
+        var received:
+            (
+                AppearanceThemeID,
+                AppearanceColorEditTarget,
+                AppearanceColor
+            )?
+
+        coordinator.beginEditing(
+            theme: .bold,
+            target: .statusItem(.weeklyText),
+            color: AppearanceColor(hex: 0x20304A),
+            above: .popUpMenu
+        ) {
+            received = ($0, $1, $2)
+        }
+
+        #expect(!driver.showsAlpha)
+        #expect(
+            coordinator.activeContext
+                == AppearanceColorPanelEditContext(
+                    theme: .bold,
+                    target: .statusItem(.weeklyText)
+                )
+        )
+
+        driver.simulateColor(
+            NSColor(
+                srgbRed: 0.2,
+                green: 0.4,
+                blue: 0.6,
+                alpha: 0.15
+            ),
+            alpha: 0.15
+        )
+
+        #expect(received?.0 == .bold)
+        #expect(received?.1 == .statusItem(.weeklyText))
+        #expect(received?.2.alpha == 1)
     }
 
     @Test @MainActor
@@ -257,7 +308,7 @@ struct AppearanceColorPanelCoordinatorTests {
 
         coordinator.beginEditing(
             theme: .loud,
-            token: .background,
+            target: .palette(.background),
             color: .white,
             above: .popUpMenu
         ) { _, _, _ in }
@@ -297,7 +348,7 @@ struct AppearanceColorPanelCoordinatorTests {
 
         coordinator.beginEditing(
             theme: .loud,
-            token: .actionAccent,
+            target: .palette(.actionAccent),
             color: AppearanceColor(hex: 0xFF676B),
             above: .popUpMenu
         ) { _, _, _ in }
@@ -329,7 +380,7 @@ struct AppearanceColorPanelCoordinatorTests {
         )
         coordinator.beginEditing(
             theme: .frost,
-            token: .normal,
+            target: .palette(.normal),
             color: AppearanceColor(hex: 0x4FC9C1),
             above: .popUpMenu
         ) { _, _, _ in }
@@ -359,17 +410,21 @@ struct AppearanceColorPanelCoordinatorTests {
             driver: driver
         )
         var received:
-            (AppearanceThemeID, AppearanceColorToken, AppearanceColor)?
+            (
+                AppearanceThemeID,
+                AppearanceColorEditTarget,
+                AppearanceColor
+            )?
 
         coordinator.beginEditing(
             theme: .loud,
-            token: .background,
+            target: .palette(.background),
             color: .white,
             above: .popUpMenu
         ) { _, _, _ in }
         coordinator.beginEditing(
             theme: .frost,
-            token: .danger,
+            target: .palette(.danger),
             color: AppearanceColor(hex: 0xFF676B),
             above: .popUpMenu
         ) {
@@ -382,13 +437,13 @@ struct AppearanceColorPanelCoordinatorTests {
             coordinator.activeContext
                 == AppearanceColorPanelEditContext(
                     theme: .frost,
-                    token: .danger
+                    target: .palette(.danger)
                 )
         )
 
         driver.simulateColor(.red, alpha: 0.4)
         #expect(received?.0 == .frost)
-        #expect(received?.1 == .danger)
+        #expect(received?.1 == .palette(.danger))
 
         coordinator.close()
 

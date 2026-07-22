@@ -302,7 +302,10 @@ final class MoreOverlayPresenter: ObservableObject {
     private let appearanceStore: AppearanceStore
     private let colorPanelCoordinator:
         any AppearanceColorPanelCoordinating
-    private weak var parentWindow: NSPanel?
+#if DEVELOPER_TOOLS
+    private var onOpenDeveloperPreview: (@MainActor () -> Void)?
+#endif
+    private weak var parentWindow: NSWindow?
     private weak var anchorView: MoreOverlayAnchorView?
     private var windowPair: MoreOverlayWindowPair?
     private var interactionHost:
@@ -325,6 +328,9 @@ final class MoreOverlayPresenter: ObservableObject {
         self.quotaStore = quotaStore
         self.appearanceStore = appearanceStore
         self.colorPanelCoordinator = colorPanelCoordinator
+#if DEVELOPER_TOOLS
+        onOpenDeveloperPreview = nil
+#endif
 
         appearanceStore.$revision
             .sink { [weak self] _ in
@@ -347,6 +353,20 @@ final class MoreOverlayPresenter: ObservableObject {
             .store(in: &cancellables)
     }
 
+#if DEVELOPER_TOOLS
+    convenience init(
+        quotaStore: QuotaStore,
+        appearanceStore: AppearanceStore,
+        onOpenDeveloperPreview: @escaping @MainActor () -> Void
+    ) {
+        self.init(
+            quotaStore: quotaStore,
+            appearanceStore: appearanceStore
+        )
+        self.onOpenDeveloperPreview = onOpenDeveloperPreview
+    }
+#endif
+
     var isWindowPairLoaded: Bool {
         windowPair != nil
     }
@@ -358,6 +378,12 @@ final class MoreOverlayPresenter: ObservableObject {
     var isColorEditingSessionActive: Bool {
         colorPanelCoordinator.activeContext != nil
     }
+
+#if DEVELOPER_TOOLS
+    var hasDeveloperPreviewAction: Bool {
+        onOpenDeveloperPreview != nil
+    }
+#endif
 
     var shouldDismissForGlobalOutsideClick: Bool {
         dismissalAction(for: .otherApplicationWindow)
@@ -374,7 +400,7 @@ final class MoreOverlayPresenter: ObservableObject {
         )
     }
 
-    func attach(to parentWindow: NSPanel) {
+    func attach(to parentWindow: NSWindow) {
         self.parentWindow = parentWindow
     }
 
@@ -446,7 +472,7 @@ final class MoreOverlayPresenter: ObservableObject {
     }
 
     func openColorPanel(
-        for token: AppearanceColorToken
+        for target: AppearanceColorEditTarget
     ) {
         guard
             isPresented,
@@ -457,15 +483,47 @@ final class MoreOverlayPresenter: ObservableObject {
         let theme = appearanceStore.selectedTheme
         colorPanelCoordinator.beginEditing(
             theme: theme,
-            token: token,
-            color: appearanceStore.color(for: token),
-            above: interaction.level
-        ) { [weak self] theme, token, color in
-            self?.appearanceStore.setColor(
-                color,
-                for: token,
+            target: target,
+            color: colorPanelInitialColor(
+                for: target,
                 in: theme
+            ),
+            above: interaction.level
+        ) { [weak self] theme, target, color in
+            guard let self else { return }
+            switch target {
+            case let .palette(token):
+                appearanceStore.setColor(
+                    color,
+                    for: token,
+                    in: theme
+                )
+            case let .statusItem(token):
+                appearanceStore.setStatusColor(
+                    color.withAlpha(1),
+                    for: token,
+                    in: theme
+                )
+            }
+        }
+    }
+
+    private func colorPanelInitialColor(
+        for target: AppearanceColorEditTarget,
+        in theme: AppearanceThemeID
+    ) -> AppearanceColor {
+        let profile = appearanceStore.profile(for: theme)
+        switch target {
+        case let .palette(token):
+            return profile.palette[token]
+        case let .statusItem(token):
+            let appearance = StatusItemEditorPreviewFixture.appearance(
+                for: profile
             )
+            return StatusItemEditorPreviewFixture.effectiveColor(
+                for: token,
+                in: appearance
+            ).withAlpha(1)
         }
     }
 
@@ -558,7 +616,33 @@ final class MoreOverlayPresenter: ObservableObject {
     private func makeInteractionRoot(
         page: MoreOverlayPage
     ) -> MoreOverlayInteractionView {
-        MoreOverlayInteractionView(
+#if DEVELOPER_TOOLS
+        let developerAction: (@MainActor () -> Void)?
+        if let onOpenDeveloperPreview {
+            developerAction = { [weak self] in
+                self?.close()
+                onOpenDeveloperPreview()
+            }
+        } else {
+            developerAction = nil
+        }
+#endif
+
+#if DEVELOPER_TOOLS
+        return MoreOverlayInteractionView(
+            quotaStore: quotaStore,
+            appearanceStore: appearanceStore,
+            page: page,
+            onNavigate: { [weak self] page in
+                self?.navigate(to: page)
+            },
+            onOpenCustomColor: { [weak self] token in
+                self?.openColorPanel(for: token)
+            },
+            onOpenDeveloperPreview: developerAction
+        )
+#else
+        return MoreOverlayInteractionView(
             quotaStore: quotaStore,
             appearanceStore: appearanceStore,
             page: page,
@@ -569,6 +653,7 @@ final class MoreOverlayPresenter: ObservableObject {
                 self?.openColorPanel(for: token)
             }
         )
+#endif
     }
 
     private func replaceInteractionRoot() {

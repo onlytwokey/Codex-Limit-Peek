@@ -12,18 +12,21 @@ struct StatusItemAppearanceTests {
 
         #expect(loud.cornerRadius == 0)
         #expect(loud.outlineWidth == 2)
-        #expect(loud.shadowDepth == 3)
+        #expect(loud.shadowHorizontalOffset == 3)
+        #expect(loud.shadowVerticalOffset == 3)
         #expect(loud.fontFamily == .monospaced)
         #expect(loud.fontWeight == .heavy)
 
         #expect(bold.cornerRadius == 5)
         #expect(bold.outlineWidth == 1.5)
-        #expect(bold.shadowDepth == 2)
+        #expect(bold.shadowHorizontalOffset == 2)
+        #expect(bold.shadowVerticalOffset == 2)
         #expect(bold.fillColor == AppearanceColor(hex: 0xB9EFE5))
 
         #expect(frost.cornerRadius == 7)
         #expect(frost.outlineWidth == 1.5)
-        #expect(frost.shadowDepth == 2)
+        #expect(frost.shadowHorizontalOffset == 2)
+        #expect(frost.shadowVerticalOffset == 2)
         #expect(frost.shadowBlur == 0)
         #expect(frost.fillColor.alpha == 0.3)
 
@@ -43,7 +46,7 @@ struct StatusItemAppearanceTests {
             showsFailurePattern: false
         )
         compact.fontSize = 11
-        compact.shadowDepth = 0
+        compact.shadowHorizontalOffset = 0
 
         view.update(
             title: "81% | 2h 8m",
@@ -56,7 +59,7 @@ struct StatusItemAppearanceTests {
 
         var expanded = compact
         expanded.fontSize = 13
-        expanded.shadowDepth = 2
+        expanded.shadowHorizontalOffset = 2
         view.update(
             title: "81% | 2h 8m",
             weeklyTitle: "49%",
@@ -139,7 +142,8 @@ struct StatusItemAppearanceTests {
             isUnavailable: false,
             showsFailurePattern: false
         )
-        appearance.shadowDepth = 0
+        appearance.shadowHorizontalOffset = 0
+        appearance.shadowVerticalOffset = 0
         appearance.shadowBlur = 0
 
         view.update(
@@ -162,6 +166,66 @@ struct StatusItemAppearanceTests {
 
         #expect(view.frame.width >= widthWithoutBlur + 8)
         #expect(view.frame.height == NSStatusBar.system.thickness)
+    }
+
+    @Test @MainActor
+    func signedHorizontalOffsetsReserveTheDirectionalBleed() {
+        let view = CompactStatusItemView()
+        var appearance = AppearanceResolver.status(
+            profile: .default(for: .bold),
+            primaryRemainingPercent: 81,
+            weeklyRemainingPercent: 49,
+            isUnavailable: false,
+            showsFailurePattern: false
+        )
+        appearance.shadowVerticalOffset = 0
+        appearance.shadowBlur = 1.5
+        appearance.shadowHorizontalOffset = 0
+        let centeredMetrics = StatusItemShadowMetrics(
+            appearance: appearance
+        )
+
+        view.update(
+            title: "81% | 2h 8m",
+            weeklyTitle: "49%",
+            appearance: appearance,
+            showsFailurePattern: false,
+            tooltip: "Centered shadow"
+        )
+        let centeredWidth = view.frame.width
+
+        appearance.shadowHorizontalOffset = -6
+        let offsetMetrics = StatusItemShadowMetrics(
+            appearance: appearance
+        )
+        view.update(
+            title: "81% | 2h 8m",
+            weeklyTitle: "49%",
+            appearance: appearance,
+            showsFailurePattern: false,
+            tooltip: "Left shadow"
+        )
+        let leftWidth = view.frame.width
+
+        appearance.shadowHorizontalOffset = 6
+        view.update(
+            title: "81% | 2h 8m",
+            weeklyTitle: "49%",
+            appearance: appearance,
+            showsFailurePattern: false,
+            tooltip: "Right shadow"
+        )
+
+        let expectedWidthIncrease =
+            offsetMetrics.horizontalBleed
+                - centeredMetrics.horizontalBleed
+        #expect(
+            abs(
+                (leftWidth - centeredWidth)
+                    - expectedWidthIncrease
+            ) <= 1
+        )
+        #expect(view.frame.width == leftWidth)
     }
 
     @Test @MainActor

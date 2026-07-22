@@ -192,6 +192,30 @@ struct BrutalSlider: View {
     let tint: Color
     let thumb: Color
     let onEditingChanged: (Bool) -> Void
+    let controlAccessibilityIdentifier: String?
+
+    init(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        valueText: @escaping (Double) -> String,
+        tint: Color,
+        thumb: Color,
+        onEditingChanged: @escaping (Bool) -> Void,
+        controlAccessibilityIdentifier: String? = nil
+    ) {
+        self.title = title
+        _value = value
+        self.range = range
+        self.step = step
+        self.valueText = valueText
+        self.tint = tint
+        self.thumb = thumb
+        self.onEditingChanged = onEditingChanged
+        self.controlAccessibilityIdentifier =
+            controlAccessibilityIdentifier
+    }
 
     @Environment(\.appearanceEditorFontScale) private var editorFontScale
     @State private var isEditing = false
@@ -313,6 +337,10 @@ struct BrutalSlider: View {
                     .focused($isFocused)
                     .accessibilityLabel(title)
                     .accessibilityValue(valueText(value))
+                    .accessibilityIdentifier(
+                        controlAccessibilityIdentifier
+                            ?? "brutal-slider-\(title)"
+                    )
                     .onDisappear {
                         guard isEditing else { return }
                         isEditing = false
@@ -341,73 +369,151 @@ struct AppearanceColorRow: View {
     let title: String
     let selectedColor: AppearanceColor
     let swatches: [AppearanceColor]
+    let isInherited: Bool
+    let accessibilityIdentifier: String?
     let onSelectSwatch: (AppearanceColor) -> Void
     let onOpenCustomColor: () -> Void
+    let onResetToInherited: (() -> Void)?
+
+    init(
+        title: String,
+        selectedColor: AppearanceColor,
+        swatches: [AppearanceColor],
+        isInherited: Bool = false,
+        accessibilityIdentifier: String? = nil,
+        onSelectSwatch: @escaping (AppearanceColor) -> Void,
+        onOpenCustomColor: @escaping () -> Void,
+        onResetToInherited: (() -> Void)? = nil
+    ) {
+        self.title = title
+        self.selectedColor = selectedColor
+        self.swatches = swatches
+        self.isInherited = isInherited
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.onSelectSwatch = onSelectSwatch
+        self.onOpenCustomColor = onOpenCustomColor
+        self.onResetToInherited = onResetToInherited
+    }
+
+    private var accessibilityPrefix: String {
+        accessibilityIdentifier ?? "appearance-color-\(title)"
+    }
 
     var body: some View {
-        HStack(spacing: 7) {
-            Text(title)
-                .appearanceEditorFont(
-                    size: 9,
-                    weight: .bold,
-                    design: .monospaced
-                )
-                .lineLimit(1)
-                .frame(width: 82, alignment: .leading)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 7) {
+                Text(title)
+                    .appearanceEditorFont(
+                        size: 9,
+                        weight: .bold,
+                        design: .monospaced
+                    )
+                    .lineLimit(1)
+                    .frame(width: 82, alignment: .leading)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
-            ForEach(Array(swatches.prefix(5).enumerated()), id: \.offset) {
-                _, color in
-                let isSelected = selectedColor.clamped() == color.clamped()
-                Button {
-                    onSelectSwatch(color)
-                } label: {
-                    Rectangle()
-                        .fill(color.swiftUIColor)
-                        .frame(width: 21, height: 21)
-                        .overlay {
-                            Rectangle()
-                                .stroke(
-                                    BrutalEditorStyle.ink,
-                                    lineWidth: isSelected ? 2.5 : 1.5
-                                )
-                        }
-                        .shadow(
-                            color: BrutalEditorStyle.ink,
-                            radius: 0,
-                            x: 1,
-                            y: 1
-                        )
-                        .overlay {
-                            if isSelected {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 7, weight: .black))
-                                    .foregroundStyle(
-                                        color.readable(
-                                            on: color.composited(over: .white),
-                                            minimumRatio: 3
-                                        )
-                                        .swiftUIColor
+                ForEach(
+                    Array(swatches.prefix(5).enumerated()),
+                    id: \.offset
+                ) { index, color in
+                    let isSelected = !isInherited
+                        && selectedColor.clamped() == color.clamped()
+                    Button {
+                        onSelectSwatch(color)
+                    } label: {
+                        Rectangle()
+                            .fill(color.swiftUIColor)
+                            .frame(width: 21, height: 21)
+                            .overlay {
+                                Rectangle()
+                                    .stroke(
+                                        BrutalEditorStyle.ink,
+                                        lineWidth: isSelected ? 2.5 : 1.5
                                     )
                             }
-                        }
+                            .shadow(
+                                color: BrutalEditorStyle.ink,
+                                radius: 0,
+                                x: 1,
+                                y: 1
+                            )
+                            .overlay {
+                                if isSelected {
+                                    Image(systemName: "checkmark")
+                                        .font(
+                                            .system(
+                                                size: 7,
+                                                weight: .black
+                                            )
+                                        )
+                                        .foregroundStyle(
+                                            color.readable(
+                                                on: color.composited(
+                                                    over: .white
+                                                ),
+                                                minimumRatio: 3
+                                            )
+                                            .swiftUIColor
+                                        )
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .help(color.editorHexLabel)
+                    .accessibilityLabel(
+                        "\(title)：选择颜色 \(color.editorHexLabel)"
+                    )
+                    .accessibilityAddTraits(
+                        isSelected ? .isSelected : []
+                    )
+                    .accessibilityIdentifier(
+                        "\(accessibilityPrefix)-swatch-\(index)"
+                    )
                 }
-                .buttonStyle(.plain)
-                .help(color.editorHexLabel)
-                .accessibilityLabel("选择颜色 \(color.editorHexLabel)")
-                .accessibilityAddTraits(
-                    isSelected ? .isSelected : []
+
+                AppearanceCustomColorButton(
+                    title: title,
+                    color: selectedColor,
+                    action: onOpenCustomColor,
+                    accessibilityIdentifier:
+                        "\(accessibilityPrefix)-custom"
                 )
             }
 
-            AppearanceCustomColorButton(
-                title: title,
-                color: selectedColor,
-                action: onOpenCustomColor
-            )
+            if let onResetToInherited {
+                HStack(spacing: 5) {
+                    Spacer(minLength: 90)
+                    Button(action: onResetToInherited) {
+                        Label(
+                            isInherited ? "正在跟随主题" : "跟随主题",
+                            systemImage: isInherited
+                                ? "checkmark.circle.fill"
+                                : "arrow.uturn.backward"
+                        )
+                        .appearanceEditorFont(
+                            size: 8,
+                            weight: .bold,
+                            design: .monospaced
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isInherited)
+                    .opacity(isInherited ? 0.58 : 1)
+                    .help(
+                        isInherited
+                            ? "当前颜色随主题变化"
+                            : "清除独立颜色，恢复跟随主题"
+                    )
+                    .accessibilityIdentifier(
+                        "\(accessibilityPrefix)-inherit"
+                    )
+                }
+            }
         }
         .appearanceEditorMinHeight(30)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(accessibilityPrefix)
     }
 }
 
@@ -415,6 +521,19 @@ struct AppearanceCustomColorButton: View {
     let title: String
     let color: AppearanceColor
     let action: () -> Void
+    let accessibilityIdentifier: String?
+
+    init(
+        title: String,
+        color: AppearanceColor,
+        action: @escaping () -> Void,
+        accessibilityIdentifier: String? = nil
+    ) {
+        self.title = title
+        self.color = color
+        self.action = action
+        self.accessibilityIdentifier = accessibilityIdentifier
+    }
 
     private var iconColor: Color {
         let background = color
@@ -423,6 +542,12 @@ struct AppearanceCustomColorButton: View {
         return AppearanceColor.black
             .readable(on: background, minimumRatio: 3)
             .swiftUIColor
+    }
+
+    private var customColorAccessibilityLabel: String {
+        title.hasSuffix("颜色")
+            ? "自定义\(title)"
+            : "自定义\(title)颜色"
     }
 
     var body: some View {
@@ -474,7 +599,11 @@ struct AppearanceCustomColorButton: View {
         )
         .contentShape(Rectangle())
         .help("自定义取色…")
-        .accessibilityLabel("自定义\(title)颜色")
+        .accessibilityLabel(customColorAccessibilityLabel)
+        .accessibilityIdentifier(
+            accessibilityIdentifier
+                ?? "appearance-custom-color-\(title)"
+        )
     }
 }
 

@@ -204,7 +204,7 @@ struct ThemeVisualRecipeTests {
     }
 
     @Test
-    func menuBarFittingScalesChromeAsAUnit() {
+    func menuBarFittingPreservesHorizontalShadowWhileFittingVerticalChrome() {
         var appearance = AppearanceResolver.status(
             profile: .default(for: .loud),
             primaryRemainingPercent: 81,
@@ -218,12 +218,21 @@ struct ThemeVisualRecipeTests {
 
         #expect(fitted.tagHeight < appearance.tagHeight)
         #expect(fitted.outlineWidth < appearance.outlineWidth)
-        #expect(fitted.shadowDepth < appearance.shadowDepth)
+        #expect(
+            fitted.shadowHorizontalOffset
+                == appearance.shadowHorizontalOffset
+        )
+        #expect(
+            abs(fitted.shadowVerticalOffset)
+                < abs(appearance.shadowVerticalOffset)
+        )
         #expect(fitted.horizontalPadding < appearance.horizontalPadding)
         #expect(
             fitted.tagHeight
                 + fitted.outlineWidth
-                + fitted.shadowDepth
+                + StatusItemShadowMetrics(
+                    appearance: fitted
+                ).verticalBleed
                 <= 23.000_001
         )
     }
@@ -237,19 +246,56 @@ struct ThemeVisualRecipeTests {
             isUnavailable: false,
             showsFailurePattern: false
         )
-        appearance.shadowDepth = 0
+        appearance.shadowHorizontalOffset = -7
+        appearance.shadowVerticalOffset = 0
         appearance.shadowBlur = 20
 
         let fitted = appearance.fitted(to: 24)
 
         #expect(fitted.shadowBlur < appearance.shadowBlur)
+        #expect(fitted.shadowHorizontalOffset == -7)
         #expect(
             fitted.tagHeight
                 + fitted.outlineWidth
-                + fitted.shadowDepth
-                + fitted.shadowBlur * 2
+                + StatusItemShadowMetrics(
+                    appearance: fitted
+                ).verticalBleed
                 <= 23.000_001
         )
+    }
+
+    @Test
+    func menuBarFittingOnlyCompressesVerticalShadowGeometry() {
+        var appearance = AppearanceResolver.status(
+            profile: .default(for: .bold),
+            primaryRemainingPercent: 81,
+            weeklyRemainingPercent: 49,
+            isUnavailable: false,
+            showsFailurePattern: false
+        )
+        appearance.primaryTextColor = AppearanceColor(hex: 0x113355)
+        appearance.weeklyTextColor = AppearanceColor(hex: 0x557799)
+        appearance.shadowColor = AppearanceColor(hex: 0xAA3355)
+        appearance.shadowOpacity = 0.35
+        appearance.shadowHorizontalOffset = -9
+        appearance.shadowVerticalOffset = -9
+        appearance.shadowBlur = 12
+
+        let fitted = appearance.fitted(to: 24)
+
+        #expect(fitted.primaryTextColor == appearance.primaryTextColor)
+        #expect(fitted.weeklyTextColor == appearance.weeklyTextColor)
+        #expect(fitted.shadowColor == appearance.shadowColor)
+        #expect(fitted.shadowOpacity == appearance.shadowOpacity)
+        #expect(
+            fitted.shadowHorizontalOffset
+                == appearance.shadowHorizontalOffset
+        )
+        #expect(
+            abs(fitted.shadowVerticalOffset)
+                < abs(appearance.shadowVerticalOffset)
+        )
+        #expect(fitted.shadowBlur < appearance.shadowBlur)
     }
 
     @Test
@@ -260,7 +306,8 @@ struct ThemeVisualRecipeTests {
                 fontSize: 14,
                 outlineWidth: 4,
                 cornerRadius: 12,
-                shadowDepth: 6,
+                shadowHorizontalOffset: 6,
+                shadowVerticalOffset: -6,
                 shadowBlur: 8,
                 horizontalPadding: 14,
                 tagHeight: 22
@@ -277,13 +324,35 @@ struct ThemeVisualRecipeTests {
 
             #expect(fitted.fontSize >= 8)
             #expect(fitted.tagHeight >= fitted.fontSize + 3.5)
+            #expect(fitted.shadowHorizontalOffset == 6)
             #expect(
                 fitted.tagHeight
                     + fitted.outlineWidth
-                    + fitted.shadowDepth
-                    + fitted.shadowBlur * 2
+                    + StatusItemShadowMetrics(
+                        appearance: fitted
+                    ).verticalBleed
                     <= 23.000_001
             )
         }
+    }
+
+    @Test
+    func compactTagConstrainsFontBeforeItCanOverflowTheFill() {
+        var appearance = AppearanceResolver.status(
+            profile: .default(for: .loud),
+            primaryRemainingPercent: 81,
+            weeklyRemainingPercent: 49,
+            isUnavailable: false,
+            showsFailurePattern: false
+        )
+        appearance.fontSize = 14
+        appearance.tagHeight = 14
+        appearance.outlineWidth = 0
+        appearance.shadowOpacity = 0
+
+        let fitted = appearance.fitted(to: 24)
+
+        #expect(fitted.fontSize <= fitted.tagHeight - 4)
+        #expect(fitted.tagHeight == 14)
     }
 }

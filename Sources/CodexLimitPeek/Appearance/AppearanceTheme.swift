@@ -185,6 +185,12 @@ enum AppearanceColorToken: String, CaseIterable, Sendable {
     case unavailableStripe
 }
 
+enum StatusItemColorToken: String, CaseIterable, Sendable {
+    case primaryText
+    case weeklyText
+    case shadow
+}
+
 struct ThemePalette: Codable, Equatable, Sendable {
     var background: AppearanceColor
     var surface: AppearanceColor
@@ -264,20 +270,123 @@ struct ThemeGeometry: Codable, Equatable, Sendable {
     }
 }
 
+struct StatusItemStyle: Codable, Equatable, Sendable {
+    var primaryTextColor: AppearanceColor?
+    var weeklyTextColor: AppearanceColor?
+    var shadowColor: AppearanceColor?
+    var shadowOpacity: Double
+
+    static func `default`(
+        for theme: AppearanceThemeID
+    ) -> StatusItemStyle {
+        StatusItemStyle(
+            primaryTextColor: nil,
+            weeklyTextColor: nil,
+            shadowColor: nil,
+            shadowOpacity: ThemeVisualRecipe.default(for: theme)
+                .statusChip.shadow.opacity
+        )
+    }
+
+    func validated(
+        defaultingTo defaults: StatusItemStyle
+    ) -> StatusItemStyle {
+        StatusItemStyle(
+            primaryTextColor: primaryTextColor.map {
+                $0.clamped().withAlpha(1)
+            },
+            weeklyTextColor: weeklyTextColor.map {
+                $0.clamped().withAlpha(1)
+            },
+            shadowColor: shadowColor.map {
+                $0.clamped().withAlpha(1)
+            },
+            shadowOpacity: shadowOpacity.isFinite
+                ? min(max(shadowOpacity, 0), 1)
+                : defaults.shadowOpacity
+        )
+    }
+
+    subscript(token: StatusItemColorToken) -> AppearanceColor? {
+        get {
+            switch token {
+            case .primaryText:
+                primaryTextColor
+            case .weeklyText:
+                weeklyTextColor
+            case .shadow:
+                shadowColor
+            }
+        }
+        set {
+            switch token {
+            case .primaryText:
+                primaryTextColor = newValue
+            case .weeklyText:
+                weeklyTextColor = newValue
+            case .shadow:
+                shadowColor = newValue
+            }
+        }
+    }
+}
+
 struct StatusItemGeometry: Codable, Equatable, Sendable {
     var fontSize: Double
     var outlineWidth: Double
     var cornerRadius: Double
-    var shadowDepth: Double
+    var shadowHorizontalOffset: Double
+    var shadowVerticalOffset: Double
     var shadowBlur: Double
     var horizontalPadding: Double
     var tagHeight: Double
+
+    init(
+        fontSize: Double,
+        outlineWidth: Double,
+        cornerRadius: Double,
+        shadowHorizontalOffset: Double,
+        shadowVerticalOffset: Double,
+        shadowBlur: Double,
+        horizontalPadding: Double,
+        tagHeight: Double
+    ) {
+        self.fontSize = fontSize
+        self.outlineWidth = outlineWidth
+        self.cornerRadius = cornerRadius
+        self.shadowHorizontalOffset = shadowHorizontalOffset
+        self.shadowVerticalOffset = shadowVerticalOffset
+        self.shadowBlur = shadowBlur
+        self.horizontalPadding = horizontalPadding
+        self.tagHeight = tagHeight
+    }
+
+    init(
+        fontSize: Double,
+        outlineWidth: Double,
+        cornerRadius: Double,
+        shadowDepth: Double,
+        shadowBlur: Double,
+        horizontalPadding: Double,
+        tagHeight: Double
+    ) {
+        self.init(
+            fontSize: fontSize,
+            outlineWidth: outlineWidth,
+            cornerRadius: cornerRadius,
+            shadowHorizontalOffset: shadowDepth,
+            shadowVerticalOffset: shadowDepth,
+            shadowBlur: shadowBlur,
+            horizontalPadding: horizontalPadding,
+            tagHeight: tagHeight
+        )
+    }
 
     enum EditorRange {
         static let fontSize: ClosedRange<Double> = 8...14
         static let outlineWidth: ClosedRange<Double> = 0...4
         static let cornerRadius: ClosedRange<Double> = 0...12
-        static let shadowDepth: ClosedRange<Double> = 0...6
+        static let shadowOffset: ClosedRange<Double> = -10...10
         static let shadowBlur: ClosedRange<Double> = 0...8
         static let horizontalPadding: ClosedRange<Double> = 2...14
         static let tagHeight: ClosedRange<Double> = 14...22
@@ -287,7 +396,7 @@ struct StatusItemGeometry: Codable, Equatable, Sendable {
         static let fontSize = EditorRange.fontSize
         static let outlineWidth = EditorRange.outlineWidth
         static let cornerRadius: ClosedRange<Double> = 0...28
-        static let shadowDepth = EditorRange.shadowDepth
+        static let shadowOffset: ClosedRange<Double> = -20...20
         static let shadowBlur: ClosedRange<Double> = 0...20
         static let horizontalPadding = EditorRange.horizontalPadding
         static let tagHeight = EditorRange.tagHeight
@@ -302,7 +411,8 @@ struct StatusItemGeometry: Codable, Equatable, Sendable {
                 fontSize: 10,
                 outlineWidth: 2,
                 cornerRadius: 0,
-                shadowDepth: 3,
+                shadowHorizontalOffset: 3,
+                shadowVerticalOffset: 3,
                 shadowBlur: 0,
                 horizontalPadding: 7,
                 tagHeight: 18
@@ -312,7 +422,8 @@ struct StatusItemGeometry: Codable, Equatable, Sendable {
                 fontSize: 10,
                 outlineWidth: 1.5,
                 cornerRadius: 5,
-                shadowDepth: 2,
+                shadowHorizontalOffset: 2,
+                shadowVerticalOffset: 2,
                 shadowBlur: 0,
                 horizontalPadding: 7,
                 tagHeight: 18
@@ -322,7 +433,8 @@ struct StatusItemGeometry: Codable, Equatable, Sendable {
                 fontSize: 10,
                 outlineWidth: 1.5,
                 cornerRadius: 7,
-                shadowDepth: 2,
+                shadowHorizontalOffset: 2,
+                shadowVerticalOffset: 2,
                 shadowBlur: 0,
                 horizontalPadding: 7,
                 tagHeight: 18
@@ -358,10 +470,15 @@ struct StatusItemGeometry: Codable, Equatable, Sendable {
                 in: CompatibilityRange.cornerRadius,
                 fallback: defaults.cornerRadius
             ),
-            shadowDepth: value(
-                shadowDepth,
-                in: CompatibilityRange.shadowDepth,
-                fallback: defaults.shadowDepth
+            shadowHorizontalOffset: value(
+                shadowHorizontalOffset,
+                in: CompatibilityRange.shadowOffset,
+                fallback: defaults.shadowHorizontalOffset
+            ),
+            shadowVerticalOffset: value(
+                shadowVerticalOffset,
+                in: CompatibilityRange.shadowOffset,
+                fallback: defaults.shadowVerticalOffset
             ),
             shadowBlur: value(
                 shadowBlur,
@@ -389,14 +506,33 @@ struct ThemeCapabilities: Codable, Equatable, Sendable {
 }
 
 struct AppearanceProfile: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 3
+    static let currentSchemaVersion = 4
 
     var schemaVersion: Int
     var themeID: AppearanceThemeID
     var palette: ThemePalette
     var geometry: ThemeGeometry
     var statusItemGeometry: StatusItemGeometry
+    var statusItemStyle: StatusItemStyle
     var capabilities: ThemeCapabilities
+
+    init(
+        schemaVersion: Int,
+        themeID: AppearanceThemeID,
+        palette: ThemePalette,
+        geometry: ThemeGeometry,
+        statusItemGeometry: StatusItemGeometry,
+        statusItemStyle: StatusItemStyle? = nil,
+        capabilities: ThemeCapabilities
+    ) {
+        self.schemaVersion = schemaVersion
+        self.themeID = themeID
+        self.palette = palette
+        self.geometry = geometry
+        self.statusItemGeometry = statusItemGeometry
+        self.statusItemStyle = statusItemStyle ?? .default(for: themeID)
+        self.capabilities = capabilities
+    }
 
     func validated(for expectedTheme: AppearanceThemeID) -> AppearanceProfile {
         var copy = self
@@ -418,6 +554,9 @@ struct AppearanceProfile: Codable, Equatable, Sendable {
             defaultingTo: Self.default(
                 for: expectedTheme
             ).statusItemGeometry
+        )
+        copy.statusItemStyle = statusItemStyle.validated(
+            defaultingTo: .default(for: expectedTheme)
         )
         copy.capabilities = Self.default(for: expectedTheme).capabilities
         return copy
@@ -451,6 +590,7 @@ extension AppearanceProfile {
                     surfaceOpacity: 1
                 ),
                 statusItemGeometry: .default(for: .loud),
+                statusItemStyle: .default(for: .loud),
                 capabilities: ThemeCapabilities(
                     usesMaterial: false,
                     uppercaseMetadata: true,
@@ -481,6 +621,7 @@ extension AppearanceProfile {
                     surfaceOpacity: 1
                 ),
                 statusItemGeometry: .default(for: .bold),
+                statusItemStyle: .default(for: .bold),
                 capabilities: ThemeCapabilities(
                     usesMaterial: false,
                     uppercaseMetadata: false,
@@ -514,6 +655,7 @@ extension AppearanceProfile {
                     surfaceOpacity: 0.55
                 ),
                 statusItemGeometry: .default(for: .frost),
+                statusItemStyle: .default(for: .frost),
                 capabilities: ThemeCapabilities(
                     usesMaterial: true,
                     uppercaseMetadata: false,
@@ -560,11 +702,13 @@ struct ResolvedStatusItemAppearance: Equatable, Sendable {
     var primaryTextColor: AppearanceColor
     var weeklyTextColor: AppearanceColor
     var outlineColor: AppearanceColor
+    var shadowColor: AppearanceColor
     var unavailableBaseColor: AppearanceColor
     var unavailableStripeColor: AppearanceColor
     var outlineWidth: Double
     var cornerRadius: Double
-    var shadowDepth: Double
+    var shadowHorizontalOffset: Double
+    var shadowVerticalOffset: Double
     var shadowBlur: Double
     var shadowOpacity: Double
     var horizontalPadding: Double
@@ -754,9 +898,16 @@ enum AppearanceResolver {
                     min(semanticFill.alpha, visuals.statusFillOpacity)
                 )
         let effectiveFill = fill.composited(over: .white)
-        let primaryText = profile.palette.textAndOutline.readable(
+        let inheritedText = profile.palette.textAndOutline.readable(
             on: effectiveFill
         )
+        let statusStyle = profile.statusItemStyle
+        let primaryText = statusStyle.primaryTextColor ?? inheritedText
+        let weeklyText = statusStyle.weeklyTextColor ?? inheritedText
+        let outline = profile.palette.textAndOutline.readable(
+            on: effectiveFill
+        )
+        let shadow = statusStyle.shadowColor ?? outline
         return ResolvedStatusItemAppearance(
             themeID: profile.themeID,
             fontSize: statusGeometry.fontSize,
@@ -764,17 +915,19 @@ enum AppearanceResolver {
             fontWeight: visuals.typography.statusWeight,
             fillColor: fill,
             primaryTextColor: primaryText,
-            weeklyTextColor: primaryText,
-            outlineColor: profile.palette.textAndOutline.readable(
-                on: effectiveFill
-            ),
+            weeklyTextColor: weeklyText,
+            outlineColor: outline,
+            shadowColor: shadow,
             unavailableBaseColor: profile.palette.unavailableBase,
             unavailableStripeColor: profile.palette.unavailableStripe,
             outlineWidth: statusGeometry.outlineWidth,
             cornerRadius: statusGeometry.cornerRadius,
-            shadowDepth: statusGeometry.shadowDepth,
+            shadowHorizontalOffset:
+                statusGeometry.shadowHorizontalOffset,
+            shadowVerticalOffset:
+                statusGeometry.shadowVerticalOffset,
             shadowBlur: statusGeometry.shadowBlur,
-            shadowOpacity: visuals.statusChip.shadow.opacity,
+            shadowOpacity: statusStyle.shadowOpacity,
             horizontalPadding: statusGeometry.horizontalPadding,
             tagHeight: statusGeometry.tagHeight
         )

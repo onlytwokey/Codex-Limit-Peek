@@ -59,7 +59,7 @@ struct AppearanceEditorView: View {
                         AppearanceEditorSection(
                             appearance: resolvedAppearance,
                             title: "基础色板",
-                            subtitle: "面板与状态栏实时共用"
+                            subtitle: "面板配色；状态栏可单独覆盖文字与阴影"
                         ) {
                             VStack(spacing: 10) {
                                 colorRow(
@@ -358,7 +358,7 @@ struct AppearanceEditorView: View {
                             design: .monospaced
                         )
                     Spacer(minLength: 8)
-                    Text("字体 · 描边 · 阴影 · 尺寸 ›")
+                    Text("颜色 · 字体 · 描边 · 阴影 · 尺寸 ›")
                         .appearanceEditorFont(
                             size: 8,
                             weight: .black,
@@ -374,7 +374,7 @@ struct AppearanceEditorView: View {
                             weight: .black,
                             design: .monospaced
                         )
-                    Text("字体 · 描边 · 阴影 · 尺寸 ›")
+                    Text("颜色 · 字体 · 描边 · 阴影 · 尺寸 ›")
                         .appearanceEditorFont(
                             size: 8,
                             weight: .black,
@@ -403,7 +403,7 @@ struct AppearanceEditorView: View {
             "打开状态栏显示层设置"
         )
         .accessibilityHint(
-            "调整当前主题的字体、描边、阴影、留白和高度"
+            "调整当前主题的文字颜色、阴影颜色、字体、描边、偏移、留白和高度"
         )
     }
 

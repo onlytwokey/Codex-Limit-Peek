@@ -456,38 +456,44 @@ extension ResolvedStatusItemAppearance {
         to menuBarHeight: Double
     ) -> ResolvedStatusItemAppearance {
         let availableHeight = max(menuBarHeight - 1, 1)
+        var base = self
+        base.fontSize = min(
+            fontSize,
+            max(tagHeight - 4, 1)
+        )
+        let shadowMetrics = StatusItemShadowMetrics(appearance: base)
         let originalOccupiedHeight = (
-            tagHeight
-                + shadowDepth
-                + shadowBlur * 2
-                + outlineWidth
+            base.tagHeight
+                + base.outlineWidth
+                + shadowMetrics.verticalBleed
         )
         guard originalOccupiedHeight > availableHeight else {
-            return self
+            return base
         }
 
-        let minimumFontSize = min(fontSize, 8)
+        let minimumFontSize = min(base.fontSize, 8)
         let minimumTagHeight = min(
-            tagHeight,
+            base.tagHeight,
             max(minimumFontSize + 4, 12)
         )
         let uniformScale = availableHeight / originalOccupiedHeight
-        let legibilityScale = tagHeight > 0
-            ? minimumTagHeight / tagHeight
+        let legibilityScale = base.tagHeight > 0
+            ? minimumTagHeight / base.tagHeight
             : 1
         let geometryScale = min(
             1,
             max(uniformScale, legibilityScale)
         )
 
-        var copy = self
-        copy.fontSize = max(minimumFontSize, fontSize * geometryScale)
-        copy.outlineWidth *= geometryScale
-        copy.cornerRadius *= geometryScale
-        copy.shadowDepth *= geometryScale
-        copy.shadowBlur *= geometryScale
-        copy.horizontalPadding *= geometryScale
-        copy.tagHeight *= geometryScale
+        var copy = base
+        copy.fontSize = max(
+            minimumFontSize,
+            base.fontSize * geometryScale
+        )
+        copy.outlineWidth = base.outlineWidth * geometryScale
+        copy.cornerRadius = base.cornerRadius * geometryScale
+        copy.horizontalPadding = base.horizontalPadding * geometryScale
+        copy.tagHeight = base.tagHeight * geometryScale
 
         let fixedHeight = copy.tagHeight + copy.outlineWidth
         guard fixedHeight <= availableHeight else {
@@ -503,16 +509,18 @@ extension ResolvedStatusItemAppearance {
             copy.cornerRadius *= emergencyScale
             copy.horizontalPadding *= emergencyScale
             copy.tagHeight *= emergencyScale
-            copy.shadowDepth = 0
+            copy.shadowVerticalOffset = 0
             copy.shadowBlur = 0
             return copy
         }
 
-        let shadowHeight = copy.shadowDepth + copy.shadowBlur * 2
+        let shadowHeight = StatusItemShadowMetrics(
+            appearance: copy
+        ).verticalBleed
         let shadowBudget = max(0, availableHeight - fixedHeight)
         if shadowHeight > shadowBudget, shadowHeight > 0 {
             let shadowScale = shadowBudget / shadowHeight
-            copy.shadowDepth *= shadowScale
+            copy.shadowVerticalOffset *= shadowScale
             copy.shadowBlur *= shadowScale
         }
         return copy

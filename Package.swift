@@ -12,11 +12,23 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "CodexLimitPeek"
+            name: "CodexLimitPeek",
+            swiftSettings: [
+                .define(
+                    "DEVELOPER_TOOLS",
+                    .when(configuration: .debug)
+                )
+            ]
         ),
         .testTarget(
             name: "CodexLimitPeekTests",
-            dependencies: ["CodexLimitPeek"]
+            dependencies: ["CodexLimitPeek"],
+            swiftSettings: [
+                .define(
+                    "DEVELOPER_TOOLS",
+                    .when(configuration: .debug)
+                )
+            ]
         )
     ]
 )

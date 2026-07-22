@@ -4,6 +4,84 @@ import Testing
 
 @Suite(.serialized)
 struct AppDelegateLifecycleTests {
+#if DEVELOPER_TOOLS
+    @Test @MainActor
+    func launchArgumentsSelectOrdinaryDeveloperOrInvalidMode() {
+        let production = AppDelegate(arguments: ["CodexLimitPeek"])
+        let developer = AppDelegate(
+            arguments: [
+                "CodexLimitPeek",
+                "--developer-preview"
+            ]
+        )
+        let invalid = AppDelegate(
+            arguments: [
+                "CodexLimitPeek",
+                "--developer-unknown"
+            ]
+        )
+
+        #expect(
+            production.developerPreviewConfigurationForTesting == nil
+        )
+        #expect(
+            production.developerPreviewLaunchErrorForTesting == nil
+        )
+        #expect(
+            developer.developerPreviewConfigurationForTesting?
+                .exitsWhenWindowCloses == true
+        )
+        #expect(
+            developer.developerPreviewLaunchErrorForTesting == nil
+        )
+        #expect(
+            invalid.developerPreviewConfigurationForTesting == nil
+        )
+        #expect(
+            invalid.developerPreviewLaunchErrorForTesting != nil
+        )
+    }
+
+    @Test @MainActor
+    func developerPreviewWindowIsCreatedOnDemand() {
+        let delegate = AppDelegate(arguments: ["CodexLimitPeek"])
+        defer { delegate.closeDeveloperPreviewForTesting() }
+
+        #expect(!delegate.isDeveloperPreviewWindowLoaded)
+        delegate.openDeveloperPreviewForTesting()
+        #expect(delegate.isDeveloperPreviewWindowLoaded)
+    }
+
+    @Test @MainActor
+    func automaticDeveloperPreviewSkipsProductionRuntime() {
+        let originalActivationPolicy = NSApplication.shared.activationPolicy()
+        let delegate = AppDelegate(
+            arguments: [
+                "CodexLimitPeek",
+                "--developer-preview"
+            ]
+        )
+        defer {
+            delegate.closeDeveloperPreviewForTesting()
+            _ = NSApplication.shared.setActivationPolicy(
+                originalActivationPolicy
+            )
+        }
+
+        delegate.applicationDidFinishLaunching(
+            Notification(
+                name: NSApplication.didFinishLaunchingNotification,
+                object: NSApplication.shared
+            )
+        )
+
+        #expect(delegate.isDeveloperPreviewWindowLoaded)
+        #expect(!delegate.isProductionRuntimeStartedForTesting)
+        #expect(!delegate.isPanelWindowLoaded)
+        #expect(!delegate.isMoreOverlayWindowLoaded)
+    }
+#endif
+
     @Test @MainActor
     func panelIsCreatedOnDemandAndThenReused() throws {
         let delegate = AppDelegate()

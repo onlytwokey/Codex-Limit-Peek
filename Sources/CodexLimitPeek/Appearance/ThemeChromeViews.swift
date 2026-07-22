@@ -799,40 +799,73 @@ struct ThemeStatusChromePreview: View {
         )
     }
 
-    private var chrome: ThemeChromeRecipe {
-        ThemeChromeRecipe(
-            outlineWidth: fittedAppearance.outlineWidth,
-            cornerRadius: fittedAppearance.cornerRadius,
-            shadow: shadowRecipe
-        )
-    }
-
-    private var shadowRecipe: ThemeShadowRecipe {
-        guard
-            fittedAppearance.shadowDepth > 0
-                || fittedAppearance.shadowBlur > 0
-        else {
-            return .none
-        }
-        if fittedAppearance.shadowBlur > 0 {
-            return .soft(
-                depth: fittedAppearance.shadowDepth,
-                blur: fittedAppearance.shadowBlur,
-                opacity: fittedAppearance.shadowOpacity
-            )
-        }
-        return .hard(
-            depth: fittedAppearance.shadowDepth,
-            opacity: fittedAppearance.shadowOpacity
-        )
+    private var shadowMetrics: StatusItemShadowMetrics {
+        StatusItemShadowMetrics(appearance: fittedAppearance)
     }
 
     private var shadowInsets: EdgeInsets {
-        shadowRecipe.visualInsets
+        EdgeInsets(
+            top: CGFloat(shadowMetrics.top),
+            leading: CGFloat(shadowMetrics.leading),
+            bottom: CGFloat(shadowMetrics.bottom),
+            trailing: CGFloat(shadowMetrics.trailing)
+        )
+    }
+
+    private var statusBackground: some View {
+        let outlineInset = CGFloat(
+            fittedAppearance.outlineWidth / 2
+        )
+        let shape = RoundedRectangle(
+            cornerRadius: CGFloat(
+                min(
+                    fittedAppearance.cornerRadius,
+                    fittedAppearance.tagHeight / 2
+                )
+            ),
+            style: .continuous
+        )
+
+        return ZStack {
+            shape
+                .fill(fittedAppearance.fillColor.swiftUIColor)
+                .padding(outlineInset)
+                .shadow(
+                    color: fittedAppearance.shadowColor.swiftUIColor
+                        .opacity(fittedAppearance.shadowOpacity),
+                    radius: CGFloat(fittedAppearance.shadowBlur),
+                    x: CGFloat(
+                        fittedAppearance.shadowHorizontalOffset
+                    ),
+                    y: CGFloat(
+                        fittedAppearance.shadowVerticalOffset
+                    )
+                )
+
+            if fittedAppearance.outlineWidth > 0 {
+                shape
+                    .stroke(
+                        fittedAppearance.outlineColor.swiftUIColor,
+                        lineWidth: CGFloat(
+                            fittedAppearance.outlineWidth
+                        )
+                    )
+                    .padding(outlineInset)
+            }
+        }
     }
 
     var body: some View {
-        Text("81% | 1h34m | 49%")
+        (
+            Text("81% | 1h34m | ")
+                .foregroundColor(
+                    fittedAppearance.primaryTextColor.swiftUIColor
+                )
+                + Text("49%")
+                .foregroundColor(
+                    fittedAppearance.weeklyTextColor.swiftUIColor
+                )
+        )
             .font(
                 .system(
                     size: CGFloat(fittedAppearance.fontSize),
@@ -842,9 +875,6 @@ struct ThemeStatusChromePreview: View {
             )
             .tracking(-0.2)
             .monospacedDigit()
-            .foregroundStyle(
-                fittedAppearance.primaryTextColor.swiftUIColor
-            )
             .padding(
                 .horizontal,
                 CGFloat(
@@ -860,11 +890,7 @@ struct ThemeStatusChromePreview: View {
             )
             .fixedSize(horizontal: true, vertical: false)
             .background {
-                ThemeSurfaceBackground(
-                    fill: fittedAppearance.fillColor,
-                    outline: fittedAppearance.outlineColor,
-                    chrome: chrome
-                )
+                statusBackground
             }
             .padding(shadowInsets)
             .accessibilityElement(children: .ignore)

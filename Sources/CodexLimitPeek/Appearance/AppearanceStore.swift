@@ -14,6 +14,10 @@ enum AppearancePersistenceKey {
         "appearance.migration.opaqueBackgroundPreset.v1"
 
     static func profile(_ theme: AppearanceThemeID) -> String {
+        "appearance.profile.\(theme.rawValue).v4"
+    }
+
+    static func legacyProfileV3(_ theme: AppearanceThemeID) -> String {
         "appearance.profile.\(theme.rawValue).v3"
     }
 
@@ -37,6 +41,152 @@ struct LegacyThemePaletteV1: Codable, Equatable, Sendable {
     var unavailableStripe: AppearanceColor
 }
 
+struct LegacyStatusItemGeometryV3: Codable, Equatable, Sendable {
+    var fontSize: Double
+    var outlineWidth: Double
+    var cornerRadius: Double
+    var shadowDepth: Double
+    var shadowBlur: Double
+    var horizontalPadding: Double
+    var tagHeight: Double
+
+    static func `default`(
+        for theme: AppearanceThemeID
+    ) -> LegacyStatusItemGeometryV3 {
+        let geometry = StatusItemGeometry.default(for: theme)
+        return LegacyStatusItemGeometryV3(
+            fontSize: geometry.fontSize,
+            outlineWidth: geometry.outlineWidth,
+            cornerRadius: geometry.cornerRadius,
+            shadowDepth: geometry.shadowVerticalOffset,
+            shadowBlur: geometry.shadowBlur,
+            horizontalPadding: geometry.horizontalPadding,
+            tagHeight: geometry.tagHeight
+        )
+    }
+
+    func migrated(
+        for theme: AppearanceThemeID
+    ) -> StatusItemGeometry {
+        let legacy = validated(defaultingTo: .default(for: theme))
+        return StatusItemGeometry(
+            fontSize: legacy.fontSize,
+            outlineWidth: legacy.outlineWidth,
+            cornerRadius: legacy.cornerRadius,
+            shadowDepth: legacy.shadowDepth,
+            shadowBlur: legacy.shadowBlur,
+            horizontalPadding: legacy.horizontalPadding,
+            tagHeight: legacy.tagHeight
+        )
+        .validated(defaultingTo: .default(for: theme))
+    }
+
+    private func validated(
+        defaultingTo defaults: LegacyStatusItemGeometryV3
+    ) -> LegacyStatusItemGeometryV3 {
+        func value(
+            _ candidate: Double,
+            in range: ClosedRange<Double>,
+            fallback: Double
+        ) -> Double {
+            guard candidate.isFinite else { return fallback }
+            return min(max(candidate, range.lowerBound), range.upperBound)
+        }
+
+        return LegacyStatusItemGeometryV3(
+            fontSize: value(
+                fontSize,
+                in: StatusItemGeometry.CompatibilityRange.fontSize,
+                fallback: defaults.fontSize
+            ),
+            outlineWidth: value(
+                outlineWidth,
+                in: StatusItemGeometry.CompatibilityRange.outlineWidth,
+                fallback: defaults.outlineWidth
+            ),
+            cornerRadius: value(
+                cornerRadius,
+                in: StatusItemGeometry.CompatibilityRange.cornerRadius,
+                fallback: defaults.cornerRadius
+            ),
+            shadowDepth: value(
+                shadowDepth,
+                in: 0...6,
+                fallback: defaults.shadowDepth
+            ),
+            shadowBlur: value(
+                shadowBlur,
+                in: StatusItemGeometry.CompatibilityRange.shadowBlur,
+                fallback: defaults.shadowBlur
+            ),
+            horizontalPadding: value(
+                horizontalPadding,
+                in: StatusItemGeometry.CompatibilityRange.horizontalPadding,
+                fallback: defaults.horizontalPadding
+            ),
+            tagHeight: value(
+                tagHeight,
+                in: StatusItemGeometry.CompatibilityRange.tagHeight,
+                fallback: defaults.tagHeight
+            )
+        )
+    }
+}
+
+struct LegacyAppearanceProfileV3: Codable, Equatable, Sendable {
+    var schemaVersion: Int
+    var themeID: AppearanceThemeID
+    var palette: ThemePalette
+    var geometry: ThemeGeometry
+    var statusItemGeometry: LegacyStatusItemGeometryV3
+    var capabilities: ThemeCapabilities
+
+    static func `default`(
+        for theme: AppearanceThemeID
+    ) -> LegacyAppearanceProfileV3 {
+        let profile = AppearanceProfile.default(for: theme)
+        return LegacyAppearanceProfileV3(
+            schemaVersion: 3,
+            themeID: theme,
+            palette: profile.palette,
+            geometry: profile.geometry,
+            statusItemGeometry: .default(for: theme),
+            capabilities: profile.capabilities
+        )
+    }
+
+    private static func shadowOpacity(
+        for theme: AppearanceThemeID
+    ) -> Double {
+        switch theme {
+        case .loud, .bold:
+            1
+        case .frost:
+            0.72
+        }
+    }
+
+    func migrated(
+        for theme: AppearanceThemeID
+    ) -> AppearanceProfile {
+        AppearanceProfile(
+            schemaVersion: AppearanceProfile.currentSchemaVersion,
+            themeID: theme,
+            palette: palette,
+            geometry: geometry,
+            statusItemGeometry: statusItemGeometry.migrated(for: theme),
+            statusItemStyle: StatusItemStyle(
+                primaryTextColor: nil,
+                weeklyTextColor: nil,
+                shadowColor: nil,
+                shadowOpacity: Self.shadowOpacity(for: theme)
+            ),
+            capabilities: capabilities
+        )
+        .validated(for: theme)
+    }
+}
+
 struct LegacyAppearanceProfileV2: Codable, Equatable, Sendable {
     var schemaVersion: Int
     var themeID: AppearanceThemeID
@@ -57,12 +207,12 @@ struct LegacyAppearanceProfileV2: Codable, Equatable, Sendable {
         )
     }
 
-    func migrated(
+    func migratedToVersionThree(
         for theme: AppearanceThemeID
-    ) -> AppearanceProfile {
+    ) -> LegacyAppearanceProfileV3 {
         let correctedGeometry = geometry.clamped()
-        return AppearanceProfile(
-            schemaVersion: AppearanceProfile.currentSchemaVersion,
+        return LegacyAppearanceProfileV3(
+            schemaVersion: 3,
             themeID: theme,
             palette: palette,
             geometry: correctedGeometry,
@@ -71,23 +221,26 @@ struct LegacyAppearanceProfileV2: Codable, Equatable, Sendable {
                     theme: theme,
                     panelGeometry: correctedGeometry
                 ),
-            capabilities: AppearanceProfile.default(
-                for: theme
-            ).capabilities
+            capabilities: AppearanceProfile.default(for: theme).capabilities
         )
-        .validated(for: theme)
+    }
+
+    func migrated(
+        for theme: AppearanceThemeID
+    ) -> AppearanceProfile {
+        migratedToVersionThree(for: theme).migrated(for: theme)
     }
 }
 
-extension StatusItemGeometry {
+extension LegacyStatusItemGeometryV3 {
     static func migratedFromVersionTwo(
         theme: AppearanceThemeID,
         panelGeometry: ThemeGeometry
-    ) -> StatusItemGeometry {
+    ) -> LegacyStatusItemGeometryV3 {
         let panelGeometry = panelGeometry.clamped()
         let visuals = ThemeVisualRecipe.default(for: theme)
             .resolved(using: panelGeometry, theme: theme)
-        return StatusItemGeometry(
+        return LegacyStatusItemGeometryV3(
             fontSize: min(
                 max(
                     visuals.typography.statusSize
@@ -103,7 +256,6 @@ extension StatusItemGeometry {
             horizontalPadding: visuals.statusHorizontalPadding,
             tagHeight: visuals.statusTagHeight
         )
-        .validated(defaultingTo: .default(for: theme))
     }
 }
 
@@ -299,6 +451,20 @@ final class AppearanceStore: ObservableObject {
 
             if
                 let data = defaults.data(
+                    forKey: AppearancePersistenceKey.legacyProfileV3(theme)
+                ),
+                let decoded = try? decoder.decode(
+                    LegacyAppearanceProfileV3.self,
+                    from: data
+                ),
+                decoded.schemaVersion == 3
+            {
+                loaded[theme] = decoded.migrated(for: theme)
+                continue
+            }
+
+            if
+                let data = defaults.data(
                     forKey: AppearancePersistenceKey.legacyProfileV2(theme)
                 ),
                 let decoded = try? decoder.decode(
@@ -399,6 +565,58 @@ final class AppearanceStore: ObservableObject {
         markChanged(
             affectsThemeRendering: theme == selectedTheme
         )
+    }
+
+    func statusColor(
+        for token: StatusItemColorToken
+    ) -> AppearanceColor? {
+        statusColor(for: token, in: selectedTheme)
+    }
+
+    func statusColor(
+        for token: StatusItemColorToken,
+        in theme: AppearanceThemeID
+    ) -> AppearanceColor? {
+        profile(for: theme).statusItemStyle[token]
+    }
+
+    func setStatusColor(
+        _ color: AppearanceColor?,
+        for token: StatusItemColorToken
+    ) {
+        setStatusColor(color, for: token, in: selectedTheme)
+    }
+
+    func setStatusColor(
+        _ color: AppearanceColor?,
+        for token: StatusItemColorToken,
+        in theme: AppearanceThemeID
+    ) {
+        var profile = profile(for: theme)
+        profile.statusItemStyle[token] = color.map {
+            $0.clamped().withAlpha(1)
+        }
+        let validated = profile.validated(for: theme)
+        guard validated != self.profile(for: theme) else {
+            return
+        }
+        profiles[theme] = validated
+        markChanged(
+            affectsThemeRendering: theme == selectedTheme
+        )
+    }
+
+    func resetStatusColor(
+        _ token: StatusItemColorToken
+    ) {
+        setStatusColor(nil, for: token, in: selectedTheme)
+    }
+
+    func resetStatusColor(
+        _ token: StatusItemColorToken,
+        in theme: AppearanceThemeID
+    ) {
+        setStatusColor(nil, for: token, in: theme)
     }
 
     func resetCurrentTheme() {

@@ -143,7 +143,8 @@ struct AppearanceThemeTests {
                     fontSize: 10,
                     outlineWidth: 2,
                     cornerRadius: 0,
-                    shadowDepth: 3,
+                    shadowHorizontalOffset: 3,
+                    shadowVerticalOffset: 3,
                     shadowBlur: 0,
                     horizontalPadding: 7,
                     tagHeight: 18
@@ -155,7 +156,8 @@ struct AppearanceThemeTests {
                     fontSize: 10,
                     outlineWidth: 1.5,
                     cornerRadius: 5,
-                    shadowDepth: 2,
+                    shadowHorizontalOffset: 2,
+                    shadowVerticalOffset: 2,
                     shadowBlur: 0,
                     horizontalPadding: 7,
                     tagHeight: 18
@@ -167,12 +169,130 @@ struct AppearanceThemeTests {
                     fontSize: 10,
                     outlineWidth: 1.5,
                     cornerRadius: 7,
-                    shadowDepth: 2,
+                    shadowHorizontalOffset: 2,
+                    shadowVerticalOffset: 2,
                     shadowBlur: 0,
                     horizontalPadding: 7,
                     tagHeight: 18
                 )
         )
+    }
+
+    @Test
+    func statusItemStyleDefaultsInheritThemeColorsAndPreserveOpacity() {
+        #expect(AppearanceProfile.currentSchemaVersion == 4)
+
+        for theme in AppearanceThemeID.allCases {
+            let style = AppearanceProfile.default(for: theme).statusItemStyle
+
+            #expect(style.primaryTextColor == nil)
+            #expect(style.weeklyTextColor == nil)
+            #expect(style.shadowColor == nil)
+            #expect(
+                style.shadowOpacity
+                    == ThemeVisualRecipe.default(for: theme)
+                        .statusChip.shadow.opacity
+            )
+        }
+    }
+
+    @Test
+    func statusItemStyleValidationMakesOverridesOpaqueAndClampsOpacity() {
+        var profile = AppearanceProfile.default(for: .frost)
+        profile.statusItemStyle = StatusItemStyle(
+            primaryTextColor: AppearanceColor(
+                red: 2,
+                green: -1,
+                blue: 0.4,
+                alpha: 0.2
+            ),
+            weeklyTextColor: AppearanceColor(
+                red: 0.1,
+                green: 0.2,
+                blue: 0.3,
+                alpha: 0.5
+            ),
+            shadowColor: AppearanceColor(
+                red: 0.8,
+                green: 0.7,
+                blue: 0.6,
+                alpha: 0
+            ),
+            shadowOpacity: 4
+        )
+
+        let style = profile.validated(for: .frost).statusItemStyle
+
+        #expect(
+            style.primaryTextColor
+                == AppearanceColor(red: 1, green: 0, blue: 0.4)
+        )
+        #expect(
+            style.weeklyTextColor
+                == AppearanceColor(red: 0.1, green: 0.2, blue: 0.3)
+        )
+        #expect(
+            style.shadowColor
+                == AppearanceColor(red: 0.8, green: 0.7, blue: 0.6)
+        )
+        #expect(style.shadowOpacity == 1)
+
+        profile.statusItemStyle.shadowOpacity = .nan
+        #expect(
+            profile.validated(for: .frost).statusItemStyle.shadowOpacity
+                == StatusItemStyle.default(for: .frost).shadowOpacity
+        )
+    }
+
+    @Test
+    func explicitStatusColorsResolveExactlyAndIndependently() {
+        var profile = AppearanceProfile.default(for: .bold)
+        let primary = AppearanceColor(hex: 0xB9EFE5)
+        let weekly = AppearanceColor(hex: 0xF7F3E8)
+        let shadow = AppearanceColor(hex: 0x8A3FFC)
+        profile.statusItemStyle.primaryTextColor = primary
+        profile.statusItemStyle.weeklyTextColor = weekly
+        profile.statusItemStyle.shadowColor = shadow
+        profile.statusItemStyle.shadowOpacity = 0.35
+        profile.statusItemGeometry.shadowHorizontalOffset = -7
+        profile.statusItemGeometry.shadowVerticalOffset = 5
+
+        let resolved = AppearanceResolver.status(
+            profile: profile,
+            primaryRemainingPercent: 81,
+            weeklyRemainingPercent: 49,
+            isUnavailable: false,
+            showsFailurePattern: false
+        )
+
+        #expect(resolved.primaryTextColor == primary)
+        #expect(resolved.weeklyTextColor == weekly)
+        #expect(resolved.shadowColor == shadow)
+        #expect(resolved.shadowOpacity == 0.35)
+        #expect(resolved.shadowHorizontalOffset == -7)
+        #expect(resolved.shadowVerticalOffset == 5)
+    }
+
+    @Test
+    func inheritedStatusColorsRetainReadableThemeBehavior() {
+        var profile = AppearanceProfile.default(for: .bold)
+        profile.palette.textAndOutline = profile.palette.normal
+
+        let resolved = AppearanceResolver.status(
+            profile: profile,
+            primaryRemainingPercent: 81,
+            weeklyRemainingPercent: 49,
+            isUnavailable: false,
+            showsFailurePattern: false
+        )
+        let expected = profile.palette.textAndOutline.readable(
+            on: resolved.fillColor.composited(over: .white)
+        )
+
+        #expect(resolved.primaryTextColor == expected)
+        #expect(resolved.weeklyTextColor == expected)
+        #expect(resolved.outlineColor == expected)
+        #expect(resolved.shadowColor == expected)
     }
 
     @Test
@@ -187,7 +307,7 @@ struct AppearanceThemeTests {
             StatusItemGeometry.EditorRange.cornerRadius == 0...12
         )
         #expect(
-            StatusItemGeometry.EditorRange.shadowDepth == 0...6
+            StatusItemGeometry.EditorRange.shadowOffset == -10...10
         )
         #expect(
             StatusItemGeometry.EditorRange.shadowBlur == 0...8
@@ -202,6 +322,9 @@ struct AppearanceThemeTests {
             StatusItemGeometry.CompatibilityRange.cornerRadius == 0...28
         )
         #expect(
+            StatusItemGeometry.CompatibilityRange.shadowOffset == -20...20
+        )
+        #expect(
             StatusItemGeometry.CompatibilityRange.shadowBlur == 0...20
         )
     }
@@ -213,7 +336,8 @@ struct AppearanceThemeTests {
             fontSize: 50,
             outlineWidth: -1,
             cornerRadius: 80,
-            shadowDepth: 50,
+            shadowHorizontalOffset: 50,
+            shadowVerticalOffset: -50,
             shadowBlur: 80,
             horizontalPadding: 100,
             tagHeight: 1
@@ -224,7 +348,8 @@ struct AppearanceThemeTests {
         #expect(result.fontSize == 14)
         #expect(result.outlineWidth == 0)
         #expect(result.cornerRadius == 28)
-        #expect(result.shadowDepth == 6)
+        #expect(result.shadowHorizontalOffset == 20)
+        #expect(result.shadowVerticalOffset == -20)
         #expect(result.shadowBlur == 20)
         #expect(result.horizontalPadding == 14)
         #expect(result.tagHeight == 14)
@@ -237,7 +362,8 @@ struct AppearanceThemeTests {
             fontSize: .nan,
             outlineWidth: .infinity,
             cornerRadius: -Double.infinity,
-            shadowDepth: .nan,
+            shadowHorizontalOffset: .nan,
+            shadowVerticalOffset: .infinity,
             shadowBlur: .infinity,
             horizontalPadding: -Double.infinity,
             tagHeight: .nan
@@ -292,7 +418,8 @@ struct AppearanceThemeTests {
             fontSize: 14,
             outlineWidth: 4,
             cornerRadius: 12,
-            shadowDepth: 6,
+            shadowHorizontalOffset: -6,
+            shadowVerticalOffset: 6,
             shadowBlur: 8,
             horizontalPadding: 14,
             tagHeight: 22
@@ -331,7 +458,8 @@ struct AppearanceThemeTests {
             fontSize: 14,
             outlineWidth: 4,
             cornerRadius: 12,
-            shadowDepth: 6,
+            shadowHorizontalOffset: 6,
+            shadowVerticalOffset: 6,
             shadowBlur: 8,
             horizontalPadding: 14,
             tagHeight: 22
@@ -347,13 +475,15 @@ struct AppearanceThemeTests {
         let fitted = resolved.fitted(to: 24)
 
         #expect(resolved.outlineWidth > 2)
-        #expect(resolved.shadowDepth > 3)
+        #expect(resolved.shadowVerticalOffset > 3)
         #expect(resolved.cornerRadius == 12)
+        let fittedShadowMetrics = StatusItemShadowMetrics(
+            appearance: fitted
+        )
         #expect(
             fitted.tagHeight
                 + fitted.outlineWidth
-                + fitted.shadowDepth
-                + fitted.shadowBlur * 2
+                + fittedShadowMetrics.verticalBleed
                 <= 23.000_001
         )
         #expect(fitted.tagHeight >= fitted.fontSize + 3.5)

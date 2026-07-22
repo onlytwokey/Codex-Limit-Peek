@@ -11,27 +11,29 @@ private final class RecordingColorPanelCoordinator:
         AppearanceColorPanelEditContext?
     private(set) var closeCount = 0
     private(set) var beginCount = 0
+    private(set) var lastInitialColor: AppearanceColor?
     private var onChange: ((
         AppearanceThemeID,
-        AppearanceColorToken,
+        AppearanceColorEditTarget,
         AppearanceColor
     ) -> Void)?
 
     func beginEditing(
         theme: AppearanceThemeID,
-        token: AppearanceColorToken,
+        target: AppearanceColorEditTarget,
         color: AppearanceColor,
         above overlayLevel: NSWindow.Level,
         onChange: @escaping (
             AppearanceThemeID,
-            AppearanceColorToken,
+            AppearanceColorEditTarget,
             AppearanceColor
         ) -> Void
     ) {
         beginCount += 1
+        lastInitialColor = color
         activeContext = AppearanceColorPanelEditContext(
             theme: theme,
-            token: token
+            target: target
         )
         self.onChange = onChange
     }
@@ -46,7 +48,7 @@ private final class RecordingColorPanelCoordinator:
         guard let activeContext else { return }
         onChange?(
             activeContext.theme,
-            activeContext.token,
+            activeContext.target,
             color
         )
     }
@@ -59,6 +61,29 @@ private final class RecordingColorPanelCoordinator:
 
 @Suite(.serialized)
 struct MoreOverlayTests {
+#if DEVELOPER_TOOLS
+    @Test @MainActor
+    func developerActionExistsOnlyWhenTheAppSuppliesAnEntry() {
+        let suite = "MoreOverlayTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let withoutAction = MoreOverlayPresenter(
+            quotaStore: QuotaStore(defaults: defaults),
+            appearanceStore: AppearanceStore(defaults: defaults)
+        )
+        let withAction = MoreOverlayPresenter(
+            quotaStore: QuotaStore(defaults: defaults),
+            appearanceStore: AppearanceStore(defaults: defaults),
+            onOpenDeveloperPreview: {}
+        )
+
+        #expect(!withoutAction.hasDeveloperPreviewAction)
+        #expect(withAction.hasDeveloperPreviewAction)
+    }
+#endif
+
     @Test
     func statusItemPageUsesTheFixedScrollableEditorSize() {
         #expect(
@@ -326,24 +351,49 @@ struct MoreOverlayTests {
         presenter.present()
         presenter.navigate(to: .appearance)
 
-        presenter.openColorPanel(for: .background)
+        presenter.openColorPanel(for: .palette(.background))
         #expect(
             coordinator.activeContext
                 == AppearanceColorPanelEditContext(
                     theme: .loud,
-                    token: .background
+                    target: .palette(.background)
                 )
         )
         presenter.navigate(to: .stateColors)
         #expect(coordinator.activeContext == nil)
 
-        presenter.openColorPanel(for: .surface)
-        #expect(coordinator.activeContext?.token == .surface)
+        presenter.openColorPanel(for: .palette(.surface))
+        #expect(
+            coordinator.activeContext?.target == .palette(.surface)
+        )
         appearance.select(.bold)
         #expect(coordinator.activeContext == nil)
 
-        presenter.openColorPanel(for: .normal)
+        presenter.openColorPanel(for: .palette(.normal))
         #expect(coordinator.activeContext?.theme == .bold)
+
+        presenter.openColorPanel(for: .statusItem(.weeklyText))
+        let expectedStatusColor = StatusItemEditorPreviewFixture
+            .appearance(for: appearance.profile(for: .bold))
+            .weeklyTextColor
+            .withAlpha(1)
+        #expect(
+            coordinator.activeContext?.target
+                == .statusItem(.weeklyText)
+        )
+        #expect(coordinator.lastInitialColor == expectedStatusColor)
+
+        let translucentStatusColor = AppearanceColor(
+            red: 0.15,
+            green: 0.25,
+            blue: 0.35,
+            alpha: 0.2
+        )
+        coordinator.simulateColorChange(translucentStatusColor)
+        #expect(
+            appearance.statusColor(for: .weeklyText, in: .bold)
+                == translucentStatusColor.withAlpha(1)
+        )
         presenter.close()
         #expect(coordinator.activeContext == nil)
     }
@@ -396,7 +446,7 @@ struct MoreOverlayTests {
         presenter.setAnchorView(anchor)
         presenter.present()
         presenter.navigate(to: .appearance)
-        presenter.openColorPanel(for: .background)
+        presenter.openColorPanel(for: .palette(.background))
 
         #expect(presenter.isColorEditingSessionActive)
         #expect(!presenter.shouldDismissForGlobalOutsideClick)
@@ -455,7 +505,7 @@ struct MoreOverlayTests {
             colorPanelCoordinator: coordinator
         )
 
-        presenter.openColorPanel(for: .background)
+        presenter.openColorPanel(for: .palette(.background))
         presenter.close()
         presenter.close()
 

@@ -111,7 +111,8 @@ enum StatusItemEditorField:
     case fontSize
     case outlineWidth
     case cornerRadius
-    case shadowDepth
+    case shadowHorizontalOffset
+    case shadowVerticalOffset
     case shadowBlur
     case horizontalPadding
     case tagHeight
@@ -126,10 +127,12 @@ enum StatusItemEditorField:
             "显示层描边"
         case .cornerRadius:
             "显示层圆角"
-        case .shadowDepth:
-            "显示层阴影深度"
+        case .shadowHorizontalOffset:
+            "阴影水平偏移"
+        case .shadowVerticalOffset:
+            "阴影垂直偏移"
         case .shadowBlur:
-            "显示层阴影模糊"
+            "阴影模糊"
         case .horizontalPadding:
             "显示层横向留白"
         case .tagHeight:
@@ -147,8 +150,10 @@ enum StatusItemEditorField:
             \.outlineWidth
         case .cornerRadius:
             \.cornerRadius
-        case .shadowDepth:
-            \.shadowDepth
+        case .shadowHorizontalOffset:
+            \.shadowHorizontalOffset
+        case .shadowVerticalOffset:
+            \.shadowVerticalOffset
         case .shadowBlur:
             \.shadowBlur
         case .horizontalPadding:
@@ -166,8 +171,8 @@ enum StatusItemEditorField:
             StatusItemGeometry.EditorRange.outlineWidth
         case .cornerRadius:
             StatusItemGeometry.EditorRange.cornerRadius
-        case .shadowDepth:
-            StatusItemGeometry.EditorRange.shadowDepth
+        case .shadowHorizontalOffset, .shadowVerticalOffset:
+            StatusItemGeometry.EditorRange.shadowOffset
         case .shadowBlur:
             StatusItemGeometry.EditorRange.shadowBlur
         case .horizontalPadding:
@@ -200,7 +205,104 @@ enum StatusItemEditorField:
     }
 
     var accessibilityIdentifier: String {
-        "status-item-\(rawValue)"
+        switch self {
+        case .fontSize:
+            "status-item-font-size"
+        case .outlineWidth:
+            "status-item-outline-width"
+        case .cornerRadius:
+            "status-item-corner-radius"
+        case .shadowHorizontalOffset:
+            "status-item-shadow-horizontal-offset"
+        case .shadowVerticalOffset:
+            "status-item-shadow-vertical-offset"
+        case .shadowBlur:
+            "status-item-shadow-blur"
+        case .horizontalPadding:
+            "status-item-horizontal-padding"
+        case .tagHeight:
+            "status-item-tag-height"
+        }
+    }
+
+    static var shadowFields: [StatusItemEditorField] {
+        [
+            .shadowHorizontalOffset,
+            .shadowVerticalOffset,
+            .shadowBlur
+        ]
+    }
+
+    static var geometryFields: [StatusItemEditorField] {
+        [
+            .fontSize,
+            .outlineWidth,
+            .cornerRadius,
+            .horizontalPadding,
+            .tagHeight
+        ]
+    }
+}
+
+enum StatusItemEditorPreviewFixture {
+    static let primaryRemainingPercent = 81
+    static let weeklyRemainingPercent = 49
+
+    static func appearance(
+        for profile: AppearanceProfile
+    ) -> ResolvedStatusItemAppearance {
+        AppearanceResolver.status(
+            profile: profile,
+            primaryRemainingPercent: primaryRemainingPercent,
+            weeklyRemainingPercent: weeklyRemainingPercent,
+            isUnavailable: false,
+            showsFailurePattern: false
+        )
+    }
+
+    static func effectiveColor(
+        for token: StatusItemColorToken,
+        in appearance: ResolvedStatusItemAppearance
+    ) -> AppearanceColor {
+        switch token {
+        case .primaryText:
+            appearance.primaryTextColor
+        case .weeklyText:
+            appearance.weeklyTextColor
+        case .shadow:
+            appearance.shadowColor
+        }
+    }
+
+    static func contrastBackgrounds(
+        for profile: AppearanceProfile
+    ) -> [AppearanceColor] {
+        let states: [(
+            primary: Int,
+            weekly: Int,
+            isUnavailable: Bool,
+            showsFailurePattern: Bool
+        )] = [
+            (81, 49, false, false),
+            (35, 35, false, false),
+            (10, 10, false, false),
+            (0, 0, true, false),
+            (63, 38, false, true)
+        ]
+
+        return states.flatMap { state in
+            let fill = AppearanceResolver.status(
+                profile: profile,
+                primaryRemainingPercent: state.primary,
+                weeklyRemainingPercent: state.weekly,
+                isUnavailable: state.isUnavailable,
+                showsFailurePattern: state.showsFailurePattern
+            ).fillColor
+            return [
+                fill.composited(over: .white),
+                fill.composited(over: .black)
+            ]
+        }
     }
 }
 
@@ -288,5 +390,28 @@ enum AppearanceEditorPalette {
             ]
         }
         return colors
+    }
+
+    static func statusItemSwatches(
+        for token: StatusItemColorToken
+    ) -> [AppearanceColor] {
+        switch token {
+        case .primaryText, .weeklyText:
+            [
+                .black,
+                .white,
+                AppearanceColor(hex: 0x20304A),
+                AppearanceColor(hex: 0xFF676B),
+                AppearanceColor(hex: 0x2F6F69)
+            ]
+        case .shadow:
+            [
+                .black,
+                AppearanceColor(hex: 0x171717),
+                AppearanceColor(hex: 0x20304A),
+                AppearanceColor(hex: 0xFF676B),
+                AppearanceColor(hex: 0x6D65E8)
+            ]
+        }
     }
 }

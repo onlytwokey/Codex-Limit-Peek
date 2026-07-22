@@ -6,7 +6,10 @@ struct MoreOverlayInteractionView: View {
     @ObservedObject var appearanceStore: AppearanceStore
     let page: MoreOverlayPage
     let onNavigate: (MoreOverlayPage) -> Void
-    let onOpenCustomColor: (AppearanceColorToken) -> Void
+    let onOpenCustomColor: (AppearanceColorEditTarget) -> Void
+#if DEVELOPER_TOOLS
+    var onOpenDeveloperPreview: (@MainActor () -> Void)? = nil
+#endif
 
     private var appearance: ResolvedPanelAppearance {
         AppearanceResolver.panel(
@@ -46,6 +49,18 @@ struct MoreOverlayInteractionView: View {
     private var pageContent: some View {
         switch page {
         case .actions:
+#if DEVELOPER_TOOLS
+            ActionsPopover(
+                store: quotaStore,
+                appearanceStore: appearanceStore,
+                appearance: appearance,
+                onShowAppearance: {
+                    onNavigate(.appearance)
+                },
+                onOpenDeveloperPreview: onOpenDeveloperPreview
+            )
+            .frame(width: MoreOverlayMetrics.actionsWidth)
+#else
             ActionsPopover(
                 store: quotaStore,
                 appearanceStore: appearanceStore,
@@ -55,24 +70,32 @@ struct MoreOverlayInteractionView: View {
                 }
             )
             .frame(width: MoreOverlayMetrics.actionsWidth)
+#endif
         case .appearance:
             AppearanceEditorView(
                 store: appearanceStore,
                 onBack: { onNavigate(.actions) },
                 onStatusItem: { onNavigate(.statusItem) },
                 onStateColors: { onNavigate(.stateColors) },
-                onOpenCustomColor: onOpenCustomColor
+                onOpenCustomColor: { token in
+                    onOpenCustomColor(.palette(token))
+                }
             )
         case .statusItem:
             StatusItemEditorView(
                 store: appearanceStore,
-                onBack: { onNavigate(.appearance) }
+                onBack: { onNavigate(.appearance) },
+                onOpenCustomColor: { token in
+                    onOpenCustomColor(.statusItem(token))
+                }
             )
         case .stateColors:
             StateColorsEditorView(
                 store: appearanceStore,
                 onBack: { onNavigate(.appearance) },
-                onOpenCustomColor: onOpenCustomColor
+                onOpenCustomColor: { token in
+                    onOpenCustomColor(.palette(token))
+                }
             )
         }
     }

@@ -42,10 +42,12 @@ final class CompactStatusItemView: NSView {
         )
         setAccessibilityHelp(tooltip)
 
+        let shadowMetrics = StatusItemShadowMetrics(
+            appearance: appearance
+        )
         let chromeWidth = CGFloat(
             appearance.outlineWidth * 2
-                + appearance.shadowDepth
-                + appearance.shadowBlur * 2
+                + shadowMetrics.horizontalBleed
         )
         let width = ceil(
             attributedTitle.size().width
@@ -66,30 +68,46 @@ final class CompactStatusItemView: NSView {
 
         let size = attributedTitle.size()
         let outlineWidth = CGFloat(resolvedAppearance.outlineWidth)
-        let shadowDepth = CGFloat(resolvedAppearance.shadowDepth)
+        let shadowHorizontalOffset = CGFloat(
+            resolvedAppearance.shadowHorizontalOffset
+        )
+        let shadowVerticalOffset = CGFloat(
+            resolvedAppearance.shadowVerticalOffset
+        )
         let shadowBlur = CGFloat(resolvedAppearance.shadowBlur)
         let cornerRadius = CGFloat(resolvedAppearance.cornerRadius)
-        let availableHeight = max(
-            8,
-            bounds.height - shadowDepth - shadowBlur * 2 - 1
+        let shadowMetrics = StatusItemShadowMetrics(
+            appearance: resolvedAppearance
+        )
+        let leadingShadowBleed = CGFloat(shadowMetrics.leading)
+        let trailingShadowBleed = CGFloat(shadowMetrics.trailing)
+        let topShadowBleed = CGFloat(shadowMetrics.top)
+        let bottomShadowBleed = CGFloat(shadowMetrics.bottom)
+        let availableOuterHeight = max(
+            1,
+            bounds.height - topShadowBleed - bottomShadowBleed
         )
         let tagHeight = min(
             CGFloat(resolvedAppearance.tagHeight),
-            availableHeight
+            max(1, availableOuterHeight - outlineWidth)
         )
-        let drawableHeight = max(1, bounds.height - shadowBlur * 2)
+        let centeringOffset = max(
+            0,
+            (availableOuterHeight - tagHeight - outlineWidth) / 2
+        )
         let tagRect = NSRect(
-            x: shadowBlur + outlineWidth / 2,
-            y: shadowBlur
-                + floor(
-                    (drawableHeight - tagHeight + shadowDepth) / 2
-                ),
+            x: leadingShadowBleed + outlineWidth / 2,
+            y: floor(
+                bottomShadowBleed
+                    + outlineWidth / 2
+                    + centeringOffset
+            ),
             width: max(
                 1,
                 bounds.width
-                    - shadowDepth
+                    - leadingShadowBleed
+                    - trailingShadowBleed
                     - outlineWidth
-                    - shadowBlur * 2
             ),
             height: tagHeight
         )
@@ -100,13 +118,21 @@ final class CompactStatusItemView: NSView {
         )
 
         NSGraphicsContext.saveGraphicsState()
-        if shadowDepth > 0 || shadowBlur > 0 {
+        if
+            resolvedAppearance.shadowOpacity > 0,
+            shadowHorizontalOffset != 0
+                || shadowVerticalOffset != 0
+                || shadowBlur > 0
+        {
             let shadow = NSShadow()
-            shadow.shadowColor = resolvedAppearance.outlineColor.nsColor
+            shadow.shadowColor = resolvedAppearance.shadowColor.nsColor
                 .withAlphaComponent(
                     CGFloat(resolvedAppearance.shadowOpacity)
                 )
-            shadow.shadowOffset = NSSize(width: shadowDepth, height: -shadowDepth)
+            shadow.shadowOffset = NSSize(
+                width: shadowHorizontalOffset,
+                height: -shadowVerticalOffset
+            )
             shadow.shadowBlurRadius = shadowBlur
             shadow.set()
         }
@@ -128,7 +154,9 @@ final class CompactStatusItemView: NSView {
         }
 
         let rect = NSRect(
-            x: shadowBlur + horizontalPadding + outlineWidth,
+            x: tagRect.minX
+                + outlineWidth / 2
+                + horizontalPadding,
             y: floor(tagRect.midY - size.height / 2),
             width: size.width,
             height: size.height

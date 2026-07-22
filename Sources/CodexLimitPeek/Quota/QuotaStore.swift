@@ -32,6 +32,7 @@ final class QuotaStore: ObservableObject {
     private let monotonicNow: @Sendable () -> TimeInterval
     private let minimumRefreshInterval: TimeInterval
     private let sleep: @Sendable (TimeInterval) async -> Void
+    private let allowsUserFacingSideEffects: Bool
 
     init(
         provider: QuotaProvider = CompositeQuotaProvider(),
@@ -43,7 +44,10 @@ final class QuotaStore: ObservableObject {
         minimumRefreshInterval: TimeInterval = 10,
         sleep: @escaping @Sendable (TimeInterval) async -> Void = { delay in
             try? await Task.sleep(for: .seconds(delay))
-        }
+        },
+        initialSnapshot: QuotaSnapshot? = nil,
+        initialRefreshHealth: RefreshHealth? = nil,
+        allowsUserFacingSideEffects: Bool = true
     ) {
         self.provider = provider
         self.defaults = defaults
@@ -51,12 +55,15 @@ final class QuotaStore: ObservableObject {
         self.monotonicNow = monotonicNow
         self.minimumRefreshInterval = max(0, minimumRefreshInterval)
         self.sleep = sleep
-        if let cached = QuotaSnapshot.cached(defaults: defaults) {
+        self.allowsUserFacingSideEffects = allowsUserFacingSideEffects
+        if let initialSnapshot {
+            self.snapshot = initialSnapshot
+        } else if let cached = QuotaSnapshot.cached(defaults: defaults) {
             self.snapshot = cached
         } else {
             self.snapshot = QuotaSnapshot.unavailable()
         }
-        self.refreshHealth = .confirmingFailure
+        self.refreshHealth = initialRefreshHealth ?? .confirmingFailure
         self.lastFailureCategory = defaults.string(forKey: CacheKey.lastFailureCategory)
             .flatMap(RefreshFailureCategory.init(rawValue:))
         let savedInterval = defaults.integer(forKey: CacheKey.voiceBroadcastIntervalMinutes)
@@ -72,7 +79,7 @@ final class QuotaStore: ObservableObject {
             }
         }
         refresh(bypassCooldown: true)
-        if requestNotificationPermission {
+        if requestNotificationPermission && allowsUserFacingSideEffects {
             self.requestNotificationPermission()
         }
     }
@@ -255,6 +262,7 @@ final class QuotaStore: ObservableObject {
 
     private func scheduleVoiceTimer() {
         voiceTimer?.invalidate()
+        guard allowsUserFacingSideEffects else { return }
         voiceTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(voiceBroadcastIntervalMinutes * 60), repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.requestVoiceBroadcast()
@@ -280,6 +288,7 @@ final class QuotaStore: ObservableObject {
     }
 
     private func requestVoiceBroadcast() {
+        guard allowsUserFacingSideEffects else { return }
         speakAfterRefresh = true
         refresh(force: false)
     }
@@ -291,7 +300,9 @@ final class QuotaStore: ObservableObject {
     }
 
     private func speak(_ snapshot: QuotaSnapshot) {
-        guard !snapshot.isUnavailable else { return }
+        guard allowsUserFacingSideEffects, !snapshot.isUnavailable else {
+            return
+        }
         let utterance = AVSpeechUtterance(string: snapshot.voiceBroadcastText)
         utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN")
         utterance.rate = 0.48
@@ -302,7 +313,9 @@ final class QuotaStore: ObservableObject {
     }
 
     private func evaluateNotifications() {
-        guard !snapshot.isUnavailable else { return }
+        guard allowsUserFacingSideEffects, !snapshot.isUnavailable else {
+            return
+        }
         let remaining = snapshot.remainingPercent
         let quotaName = snapshot.notificationQuotaName
 
