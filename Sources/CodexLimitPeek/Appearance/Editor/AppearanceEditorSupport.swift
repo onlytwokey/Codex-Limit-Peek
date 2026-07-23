@@ -30,12 +30,25 @@ private struct AppearanceEditorInitialScrollTargetKey:
         AppearanceEditorInitialScrollTarget? = nil
 }
 
+private struct AppearanceEditorDocumentationScrollSpaceKey:
+    EnvironmentKey
+{
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
     var appearanceEditorInitialScrollTarget:
         AppearanceEditorInitialScrollTarget?
     {
         get { self[AppearanceEditorInitialScrollTargetKey.self] }
         set { self[AppearanceEditorInitialScrollTargetKey.self] = newValue }
+    }
+
+    var appearanceEditorAddsDocumentationScrollSpace: Bool {
+        get { self[AppearanceEditorDocumentationScrollSpaceKey.self] }
+        set {
+            self[AppearanceEditorDocumentationScrollSpaceKey.self] = newValue
+        }
     }
 }
 

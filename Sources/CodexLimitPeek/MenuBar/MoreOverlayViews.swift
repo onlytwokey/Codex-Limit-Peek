@@ -4,9 +4,16 @@ import SwiftUI
 struct MoreOverlayInteractionView: View {
     @ObservedObject var quotaStore: QuotaStore
     @ObservedObject var appearanceStore: AppearanceStore
+    @Environment(\.appearanceEditorInitialScrollTarget)
+    private var inheritedInitialScrollTarget
     let page: MoreOverlayPage
-    let onNavigate: (MoreOverlayPage) -> Void
+    let onNavigate: (
+        MoreOverlayPage,
+        AppearanceEditorInitialScrollTarget?
+    ) -> Void
     let onOpenCustomColor: (AppearanceColorEditTarget) -> Void
+    var initialScrollTarget:
+        AppearanceEditorInitialScrollTarget? = nil
 #if DEVELOPER_TOOLS
     var onOpenDeveloperPreview: (@MainActor () -> Void)? = nil
 #endif
@@ -29,6 +36,12 @@ struct MoreOverlayInteractionView: View {
             ),
             style: .continuous
         )
+    }
+
+    private var resolvedInitialScrollTarget:
+        AppearanceEditorInitialScrollTarget?
+    {
+        initialScrollTarget ?? inheritedInitialScrollTarget
     }
 
     var body: some View {
@@ -54,8 +67,11 @@ struct MoreOverlayInteractionView: View {
                 store: quotaStore,
                 appearanceStore: appearanceStore,
                 appearance: appearance,
-                onShowAppearance: {
-                    onNavigate(.appearance)
+                onShowAppearance: { destination in
+                    onNavigate(
+                        destination.page,
+                        destination.initialScrollTarget
+                    )
                 },
                 onOpenDeveloperPreview: onOpenDeveloperPreview
             )
@@ -65,8 +81,11 @@ struct MoreOverlayInteractionView: View {
                 store: quotaStore,
                 appearanceStore: appearanceStore,
                 appearance: appearance,
-                onShowAppearance: {
-                    onNavigate(.appearance)
+                onShowAppearance: { destination in
+                    onNavigate(
+                        destination.page,
+                        destination.initialScrollTarget
+                    )
                 }
             )
             .frame(width: MoreOverlayMetrics.actionsWidth)
@@ -74,28 +93,38 @@ struct MoreOverlayInteractionView: View {
         case .appearance:
             AppearanceEditorView(
                 store: appearanceStore,
-                onBack: { onNavigate(.actions) },
-                onStatusItem: { onNavigate(.statusItem) },
-                onStateColors: { onNavigate(.stateColors) },
+                onBack: { onNavigate(.actions, nil) },
                 onOpenCustomColor: { token in
                     onOpenCustomColor(.palette(token))
                 }
+            )
+            .environment(
+                \.appearanceEditorInitialScrollTarget,
+                resolvedInitialScrollTarget
             )
         case .statusItem:
             StatusItemEditorView(
                 store: appearanceStore,
-                onBack: { onNavigate(.appearance) },
+                onBack: { onNavigate(.appearance, nil) },
                 onOpenCustomColor: { token in
                     onOpenCustomColor(.statusItem(token))
                 }
             )
+            .environment(
+                \.appearanceEditorInitialScrollTarget,
+                resolvedInitialScrollTarget
+            )
         case .stateColors:
             StateColorsEditorView(
                 store: appearanceStore,
-                onBack: { onNavigate(.appearance) },
+                onBack: { onNavigate(.appearance, nil) },
                 onOpenCustomColor: { token in
                     onOpenCustomColor(.palette(token))
                 }
+            )
+            .environment(
+                \.appearanceEditorInitialScrollTarget,
+                resolvedInitialScrollTarget
             )
         }
     }

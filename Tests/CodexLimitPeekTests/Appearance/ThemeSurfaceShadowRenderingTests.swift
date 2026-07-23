@@ -6,6 +6,34 @@ import Testing
 @Suite(.serialized)
 struct ThemeSurfaceShadowRenderingTests {
     @Test @MainActor
+    func statusFailurePreviewRendersTheConfiguredStripeColor() throws {
+        var coralProfile = AppearanceProfile.default(for: .loud)
+        coralProfile.palette.unavailableBase = .white
+        coralProfile.palette.unavailableStripe = AppearanceColor(
+            hex: 0xFF3B30
+        )
+        var blueProfile = coralProfile
+        blueProfile.palette.unavailableStripe = AppearanceColor(
+            hex: 0x007AFF
+        )
+        let pointSize = NSSize(width: 180, height: 60)
+
+        let coral = try render(
+            statusFailurePreview(profile: coralProfile),
+            pointSize: pointSize
+        )
+        let blue = try render(
+            statusFailurePreview(profile: blueProfile),
+            pointSize: pointSize
+        )
+
+        #expect(
+            coral.representation(using: .png, properties: [:])
+                != blue.representation(using: .png, properties: [:])
+        )
+    }
+
+    @Test @MainActor
     func loudQuotaCardKeepsHardShadowInBothPanelLayouts() throws {
         for showsSecondaryQuota in [false, true] {
             let noShadow = shadowPixelCounts(
@@ -274,6 +302,26 @@ struct ThemeSurfaceShadowRenderingTests {
         bitmap.size = pointSize
         host.cacheDisplay(in: host.bounds, to: bitmap)
         return bitmap
+    }
+
+    @MainActor
+    private func statusFailurePreview(
+        profile: AppearanceProfile
+    ) -> some View {
+        ThemeStatusChromePreview(
+            appearance: AppearanceResolver.status(
+                profile: profile,
+                primaryRemainingPercent: 0,
+                weeklyRemainingPercent: 0,
+                isUnavailable: true,
+                showsFailurePattern: true
+            ),
+            data: ThemeStatusDisplayData(primaryText: "—"),
+            showsFailurePattern: true
+        )
+        .environment(\.themeStatusBarThicknessOverride, 22)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white)
     }
 
     private func shadowPixelCounts(

@@ -94,6 +94,99 @@ struct MoreOverlayTests {
     }
 
     @Test
+    func appearanceShortcutsMapToApprovedPagesAndControlAnchors() {
+        #expect(
+            MoreOverlayAppearanceDestination.shortcuts == [
+                .panel,
+                .statusItem,
+                .stateColors
+            ]
+        )
+        #expect(
+            MoreOverlayAppearanceDestination.overview.page
+                == .appearance
+        )
+        #expect(
+            MoreOverlayAppearanceDestination.overview
+                .initialScrollTarget == nil
+        )
+        #expect(
+            MoreOverlayAppearanceDestination.panel.page
+                == .appearance
+        )
+        #expect(
+            MoreOverlayAppearanceDestination.panel
+                .initialScrollTarget == .panelControls
+        )
+        #expect(
+            MoreOverlayAppearanceDestination.statusItem.page
+                == .statusItem
+        )
+        #expect(
+            MoreOverlayAppearanceDestination.statusItem
+                .initialScrollTarget == .statusItemControls
+        )
+        #expect(
+            MoreOverlayAppearanceDestination.stateColors.page
+                == .stateColors
+        )
+        #expect(
+            MoreOverlayAppearanceDestination.stateColors
+                .initialScrollTarget == .stateColorControls
+        )
+        #expect(
+            MoreOverlayAppearanceDestination.allCases.map(
+                \.accessibilityIdentifier
+            ) == [
+                "appearance-navigation-overview",
+                "appearance-navigation-panel",
+                "appearance-navigation-status-item",
+                "appearance-navigation-state-colors"
+            ]
+        )
+    }
+
+    @Test @MainActor
+    func ordinaryNavigationAndCloseClearAppearanceShortcutAnchor() {
+        let suite = "MoreOverlayTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let presenter = MoreOverlayPresenter(
+            quotaStore: QuotaStore(defaults: defaults),
+            appearanceStore: AppearanceStore(defaults: defaults)
+        )
+
+        presenter.navigate(
+            to: .appearance,
+            initialScrollTarget: .panelControls
+        )
+
+        #expect(presenter.page == .appearance)
+        #expect(
+            presenter.appearanceEditorInitialScrollTarget
+                == .panelControls
+        )
+
+        presenter.navigate(to: .statusItem)
+
+        #expect(
+            presenter.appearanceEditorInitialScrollTarget == nil
+        )
+
+        presenter.navigate(
+            to: .stateColors,
+            initialScrollTarget: .stateColorControls
+        )
+        presenter.close()
+
+        #expect(presenter.page == .actions)
+        #expect(
+            presenter.appearanceEditorInitialScrollTarget == nil
+        )
+    }
+
+    @Test
     func preferredLayoutAlignsRightEdgeAndKeepsEightPointGap() {
         let anchor = NSRect(x: 600, y: 760, width: 25, height: 25)
         let visible = NSRect(x: 0, y: 0, width: 1440, height: 900)

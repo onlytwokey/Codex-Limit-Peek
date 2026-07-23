@@ -53,15 +53,18 @@ struct DocumentationPreviewSeamTests {
 
         #expect(environment.themeStatusBarThicknessOverride == nil)
         #expect(environment.appearanceEditorInitialScrollTarget == nil)
+        #expect(!environment.appearanceEditorAddsDocumentationScrollSpace)
 
         environment.themeStatusBarThicknessOverride = 22
         environment.appearanceEditorInitialScrollTarget = .panelControls
+        environment.appearanceEditorAddsDocumentationScrollSpace = true
 
         #expect(environment.themeStatusBarThicknessOverride == 22)
         #expect(
             environment.appearanceEditorInitialScrollTarget
                 == .panelControls
         )
+        #expect(environment.appearanceEditorAddsDocumentationScrollSpace)
     }
 
     @Test

@@ -784,8 +784,56 @@ struct ScaledThemePanelChromePreview: View {
     }
 }
 
+struct ThemeStatusDisplayData: Equatable, Sendable {
+    var primaryText: String
+    var resetText: String?
+    var weeklyText: String?
+    private var accessibilityValueOverride: String?
+
+    init(
+        primaryText: String,
+        resetText: String? = nil,
+        weeklyText: String? = nil,
+        accessibilityValue: String? = nil
+    ) {
+        self.primaryText = primaryText
+        self.resetText = resetText
+        self.weeklyText = weeklyText
+        accessibilityValueOverride = accessibilityValue
+    }
+
+    static let reference = ThemeStatusDisplayData(
+        primaryText: "81%",
+        resetText: "1h34m",
+        weeklyText: "49%",
+        accessibilityValue: "81%，1小时34分钟，周额度49%"
+    )
+
+    var accessibilityValue: String {
+        if let accessibilityValueOverride {
+            return accessibilityValueOverride
+        }
+        return [primaryText, resetText, weeklyText]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " | ")
+    }
+}
+
 struct ThemeStatusChromePreview: View {
     let appearance: ResolvedStatusItemAppearance
+    let data: ThemeStatusDisplayData
+    let showsFailurePattern: Bool
+
+    init(
+        appearance: ResolvedStatusItemAppearance,
+        data: ThemeStatusDisplayData = .reference,
+        showsFailurePattern: Bool = false
+    ) {
+        self.appearance = appearance
+        self.data = data
+        self.showsFailurePattern = showsFailurePattern
+    }
 
     @Environment(\.themeStatusBarThicknessOverride)
     private var statusBarThicknessOverride
@@ -826,9 +874,13 @@ struct ThemeStatusChromePreview: View {
             style: .continuous
         )
 
+        let baseFill = showsFailurePattern
+            ? fittedAppearance.unavailableBaseColor
+            : fittedAppearance.fillColor
+
         return ZStack {
             shape
-                .fill(fittedAppearance.fillColor.swiftUIColor)
+                .fill(baseFill.swiftUIColor)
                 .padding(outlineInset)
                 .shadow(
                     color: fittedAppearance.shadowColor.swiftUIColor
@@ -841,6 +893,16 @@ struct ThemeStatusChromePreview: View {
                         fittedAppearance.shadowVerticalOffset
                     )
                 )
+
+            if showsFailurePattern {
+                ThemeStatusFailurePattern(
+                    color: fittedAppearance
+                        .unavailableStripeColor.swiftUIColor
+                        .opacity(0.78)
+                )
+                .clipShape(shape)
+                .padding(outlineInset)
+            }
 
             if fittedAppearance.outlineWidth > 0 {
                 shape
@@ -855,17 +917,35 @@ struct ThemeStatusChromePreview: View {
         }
     }
 
-    var body: some View {
-        (
-            Text("81% | 1h34m | ")
+    private var statusText: Text {
+        var text = Text(data.primaryText)
+            .foregroundColor(
+                fittedAppearance.primaryTextColor.swiftUIColor
+            )
+
+        if let resetText = data.resetText, !resetText.isEmpty {
+            text = text + Text(" | \(resetText)")
                 .foregroundColor(
                     fittedAppearance.primaryTextColor.swiftUIColor
                 )
-                + Text("49%")
+        }
+
+        if let weeklyText = data.weeklyText, !weeklyText.isEmpty {
+            text = text + Text(" | ")
+                .foregroundColor(
+                    fittedAppearance.primaryTextColor.swiftUIColor
+                )
+            text = text + Text(weeklyText)
                 .foregroundColor(
                     fittedAppearance.weeklyTextColor.swiftUIColor
                 )
-        )
+        }
+
+        return text
+    }
+
+    var body: some View {
+        statusText
             .font(
                 .system(
                     size: CGFloat(fittedAppearance.fontSize),
@@ -895,6 +975,35 @@ struct ThemeStatusChromePreview: View {
             .padding(shadowInsets)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("菜单栏状态预览")
-            .accessibilityValue("81%，1小时34分钟，周额度49%")
+            .accessibilityValue(data.accessibilityValue)
+    }
+}
+
+private struct ThemeStatusFailurePattern: View {
+    let color: Color
+
+    var body: some View {
+        Canvas { context, size in
+            for x in stride(
+                from: -size.height,
+                through: size.width,
+                by: 7
+            ) {
+                var stripe = Path()
+                stripe.move(
+                    to: CGPoint(x: x, y: size.height)
+                )
+                stripe.addLine(
+                    to: CGPoint(x: x + size.height, y: 0)
+                )
+                context.stroke(
+                    stripe,
+                    with: .color(color),
+                    lineWidth: 2
+                )
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }

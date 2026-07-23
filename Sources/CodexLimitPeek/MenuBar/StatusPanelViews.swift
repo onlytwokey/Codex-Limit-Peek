@@ -273,7 +273,7 @@ struct ActionsPopover: View {
     @ObservedObject var store: QuotaStore
     @ObservedObject var appearanceStore: AppearanceStore
     let appearance: ResolvedPanelAppearance
-    let onShowAppearance: () -> Void
+    let onShowAppearance: (MoreOverlayAppearanceDestination) -> Void
 #if DEVELOPER_TOOLS
     var onOpenDeveloperPreview: (@MainActor () -> Void)? = nil
 #endif
@@ -333,7 +333,7 @@ struct ActionsPopover: View {
 
             Button {
                 withAnimation(.easeOut(duration: 0.12)) {
-                    onShowAppearance()
+                    onShowAppearance(.overview)
                 }
             } label: {
                 ActionMenuRow(
@@ -344,6 +344,35 @@ struct ActionsPopover: View {
                 )
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier(
+                MoreOverlayAppearanceDestination.overview
+                    .accessibilityIdentifier
+            )
+
+            VStack(spacing: 6) {
+                ForEach(
+                    MoreOverlayAppearanceDestination.shortcuts
+                ) { destination in
+                    Button {
+                        withAnimation(.easeOut(duration: 0.12)) {
+                            onShowAppearance(destination)
+                        }
+                    } label: {
+                        AppearanceActionSubrow(
+                            title: destination.title,
+                            appearance: appearance
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier(
+                        destination.accessibilityIdentifier
+                    )
+                    .accessibilityLabel(
+                        "打开\(destination.title)设置"
+                    )
+                }
+            }
+            .padding(.leading, 18)
 
 #if DEVELOPER_TOOLS
             if let onOpenDeveloperPreview {
@@ -447,6 +476,51 @@ struct ActionMenuRow: View {
         .foregroundStyle(appearance.textColor.swiftUIColor)
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
+        .contentShape(Rectangle())
+        .themeSurface(
+            appearance: appearance,
+            chrome: appearance.visuals.menuRow,
+            fill: appearance.surfaceColor
+        )
+    }
+}
+
+struct AppearanceActionSubrow: View {
+    let title: String
+    let appearance: ResolvedPanelAppearance
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Rectangle()
+                .fill(appearance.textColor.swiftUIColor.opacity(0.62))
+                .frame(width: 6, height: 2)
+
+            Text(title)
+                .font(
+                    .system(
+                        size: CGFloat(
+                            11 * appearance.geometry.fontScale
+                        ),
+                        weight: .semibold
+                    )
+                )
+
+            Spacer(minLength: 6)
+
+            Image(systemName: "chevron.right")
+                .font(
+                    .system(
+                        size: CGFloat(
+                            8 * appearance.geometry.fontScale
+                        ),
+                        weight: .black
+                    )
+                )
+                .opacity(0.68)
+        }
+        .foregroundStyle(appearance.textColor.swiftUIColor)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
         .contentShape(Rectangle())
         .themeSurface(
             appearance: appearance,

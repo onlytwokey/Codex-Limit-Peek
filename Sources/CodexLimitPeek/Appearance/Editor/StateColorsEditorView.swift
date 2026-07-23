@@ -1,6 +1,72 @@
 import Foundation
 import SwiftUI
 
+enum StateColorsEditorPreviewState:
+    String,
+    CaseIterable,
+    Identifiable,
+    Sendable
+{
+    case normal
+    case warning
+    case danger
+    case unavailable
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .normal:
+            "正常"
+        case .warning:
+            "警告"
+        case .danger:
+            "危险"
+        case .unavailable:
+            "不可用"
+        }
+    }
+
+    var remainingPercent: Int {
+        switch self {
+        case .normal:
+            68
+        case .warning:
+            35
+        case .danger:
+            12
+        case .unavailable:
+            0
+        }
+    }
+
+    var displayText: String {
+        self == .unavailable
+            ? "—"
+            : "\(remainingPercent)%"
+    }
+
+    var isUnavailable: Bool {
+        self == .unavailable
+    }
+
+    var showsFailurePattern: Bool {
+        self == .unavailable
+    }
+
+    func appearance(
+        for profile: AppearanceProfile
+    ) -> ResolvedStatusItemAppearance {
+        AppearanceResolver.status(
+            profile: profile,
+            primaryRemainingPercent: remainingPercent,
+            weeklyRemainingPercent: remainingPercent,
+            isUnavailable: isUnavailable,
+            showsFailurePattern: showsFailurePattern
+        )
+    }
+}
+
 struct StateColorsEditorView: View {
     @ObservedObject var store: AppearanceStore
     let onBack: () -> Void
@@ -8,6 +74,8 @@ struct StateColorsEditorView: View {
 
     @Environment(\.appearanceEditorInitialScrollTarget)
     private var initialScrollTarget
+    @Environment(\.appearanceEditorAddsDocumentationScrollSpace)
+    private var addsDocumentationScrollSpace
 
     private var resolvedAppearance: ResolvedPanelAppearance {
         AppearanceResolver.panel(
@@ -21,6 +89,11 @@ struct StateColorsEditorView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+
+            StateColorsLivePreview(profile: store.currentProfile)
+                .padding(12)
+                .brutalSectionDivider()
+                .fixedSize(horizontal: false, vertical: true)
 
             ScrollViewReader { proxy in
                 ScrollView {
@@ -92,7 +165,10 @@ struct StateColorsEditorView: View {
                                 .stateColorControls
                         )
 
-                        if initialScrollTarget == .stateColorControls {
+                        if
+                            addsDocumentationScrollSpace,
+                            initialScrollTarget == .stateColorControls
+                        {
                             Color.clear
                                 .frame(
                                     height:
@@ -211,5 +287,79 @@ struct StateColorsEditorView: View {
                 onOpenCustomColor(token)
             }
         )
+    }
+}
+
+private struct StateColorsLivePreview: View {
+    let profile: AppearanceProfile
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("实时预览")
+                .appearanceEditorFont(
+                    size: 9,
+                    weight: .black,
+                    design: .monospaced
+                )
+                .tracking(0.8)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(
+                        StateColorsEditorPreviewState.allCases
+                    ) { state in
+                        sample(for: state)
+                    }
+                }
+
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 8),
+                        GridItem(.flexible(), spacing: 8)
+                    ],
+                    alignment: .center,
+                    spacing: 7
+                ) {
+                    ForEach(
+                        StateColorsEditorPreviewState.allCases
+                    ) { state in
+                        sample(for: state)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("state-colors-live-preview")
+        .accessibilityLabel("正常、警告、危险和不可用状态实时预览")
+    }
+
+    private func sample(
+        for state: StateColorsEditorPreviewState
+    ) -> some View {
+        VStack(spacing: 3) {
+            Text(state.title)
+                .appearanceEditorFont(
+                    size: 8,
+                    weight: .black,
+                    design: .monospaced
+                )
+
+            ThemeStatusChromePreview(
+                appearance: state.appearance(for: profile),
+                data: ThemeStatusDisplayData(
+                    primaryText: state.displayText,
+                    resetText: nil,
+                    weeklyText: nil
+                ),
+                showsFailurePattern: state.showsFailurePattern
+            )
+            .accessibilityHidden(true)
+        }
+        .fixedSize(horizontal: true, vertical: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(state.title)状态预览")
+        .accessibilityValue(state.displayText)
     }
 }

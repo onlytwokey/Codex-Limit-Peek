@@ -4,27 +4,23 @@ import SwiftUI
 struct AppearanceEditorView: View {
     @ObservedObject var store: AppearanceStore
     let onBack: (() -> Void)?
-    let onStatusItem: () -> Void
-    let onStateColors: () -> Void
     let onOpenCustomColor: (AppearanceColorToken) -> Void
 
     @Environment(\.appearanceEditorInitialScrollTarget)
     private var initialScrollTarget
+    @Environment(\.appearanceEditorAddsDocumentationScrollSpace)
+    private var addsDocumentationScrollSpace
     @State private var resetConfirmation =
         AppearanceResetConfirmationState()
 
     init(
         store: AppearanceStore,
         onBack: (() -> Void)? = nil,
-        onStatusItem: @escaping () -> Void,
-        onStateColors: @escaping () -> Void,
         onOpenCustomColor:
             @escaping (AppearanceColorToken) -> Void
     ) {
         self.store = store
         self.onBack = onBack
-        self.onStatusItem = onStatusItem
-        self.onStateColors = onStateColors
         self.onOpenCustomColor = onOpenCustomColor
     }
 
@@ -41,13 +37,14 @@ struct AppearanceEditorView: View {
         VStack(spacing: 0) {
             header
 
+            AppearanceLivePreview(profile: store.currentProfile)
+                .padding(12)
+                .brutalSectionDivider()
+                .fixedSize(horizontal: false, vertical: true)
+
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        AppearanceLivePreview(profile: store.currentProfile)
-                            .padding(12)
-                            .brutalSectionDivider()
-
                         themeSelector
                             .padding(12)
                             .brutalSectionDivider()
@@ -104,11 +101,12 @@ struct AppearanceEditorView: View {
                                 AppearanceEditorInitialScrollTarget
                                     .panelControls
                             )
-                        statusItemSection
-                        stateColorsSection
                         resetSection
 
-                        if initialScrollTarget == .panelControls {
+                        if
+                            addsDocumentationScrollSpace,
+                            initialScrollTarget == .panelControls
+                        {
                             Color.clear
                                 .frame(
                                     height:
@@ -345,122 +343,6 @@ struct AppearanceEditorView: View {
                 }
             }
         }
-    }
-
-    private var statusItemSection: some View {
-        Button(action: onStatusItem) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    Text("状态栏显示层")
-                        .appearanceEditorFont(
-                            size: 9,
-                            weight: .black,
-                            design: .monospaced
-                        )
-                    Spacer(minLength: 8)
-                    Text("颜色 · 字体 · 描边 · 阴影 · 尺寸 ›")
-                        .appearanceEditorFont(
-                            size: 8,
-                            weight: .black,
-                            design: .monospaced
-                        )
-                        .opacity(0.72)
-                }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("状态栏显示层")
-                        .appearanceEditorFont(
-                            size: 9,
-                            weight: .black,
-                            design: .monospaced
-                        )
-                    Text("颜色 · 字体 · 描边 · 阴影 · 尺寸 ›")
-                        .appearanceEditorFont(
-                            size: 8,
-                            weight: .black,
-                            design: .monospaced
-                        )
-                        .opacity(0.72)
-                }
-                .frame(
-                    maxWidth: .infinity,
-                    alignment: .leading
-                )
-            }
-            .foregroundStyle(BrutalEditorStyle.ink)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .appearanceEditorMinHeight(38)
-            .contentShape(Rectangle())
-            .background(BrutalEditorStyle.paleTeal)
-            .brutalSectionDivider()
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(
-            "appearance-status-item-navigation"
-        )
-        .accessibilityLabel(
-            "打开状态栏显示层设置"
-        )
-        .accessibilityHint(
-            "调整当前主题的文字颜色、阴影颜色、字体、描边、偏移、留白和高度"
-        )
-    }
-
-    private var stateColorsSection: some View {
-        Button {
-            onStateColors()
-        } label: {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    Text("高级状态颜色")
-                        .appearanceEditorFont(
-                            size: 9,
-                            weight: .black,
-                            design: .monospaced
-                        )
-                        .tracking(0.4)
-                        .fixedSize(horizontal: true, vertical: false)
-                    Spacer(minLength: 8)
-                    Text("正常 · 警告 · 危险 · 不可用 ›")
-                        .appearanceEditorFont(
-                            size: 8,
-                            weight: .black,
-                            design: .monospaced
-                        )
-                        .opacity(0.72)
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("高级状态颜色")
-                        .appearanceEditorFont(
-                            size: 9,
-                            weight: .black,
-                            design: .monospaced
-                        )
-                        .tracking(0.4)
-                    Text("正常 · 警告 · 危险 · 不可用 ›")
-                        .appearanceEditorFont(
-                            size: 8,
-                            weight: .black,
-                            design: .monospaced
-                        )
-                        .opacity(0.72)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .foregroundStyle(BrutalEditorStyle.ink)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .appearanceEditorMinHeight(38)
-            .contentShape(Rectangle())
-            .background(BrutalEditorStyle.paleTeal)
-            .brutalSectionDivider()
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("打开高级状态颜色")
-        .accessibilityHint("分别设置当前主题的正常、警告、危险和不可用颜色")
     }
 
     private var resetSection: some View {
@@ -713,6 +595,7 @@ private struct AppearanceLivePreview: View {
             )
         }
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("appearance-live-preview")
         .accessibilityLabel("当前主题的面板与菜单栏实时预览")
     }
 }

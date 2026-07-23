@@ -1239,12 +1239,16 @@ private struct DocumentationOverlayPage: View {
                 quotaStore: quotaStore,
                 appearanceStore: appearanceStore,
                 page: page,
-                onNavigate: { _ in },
+                onNavigate: { _, _ in },
                 onOpenCustomColor: { _ in }
             )
             .environment(
                 \.appearanceEditorInitialScrollTarget,
                 scrollTarget
+            )
+            .environment(
+                \.appearanceEditorAddsDocumentationScrollSpace,
+                true
             )
         }
         .frame(

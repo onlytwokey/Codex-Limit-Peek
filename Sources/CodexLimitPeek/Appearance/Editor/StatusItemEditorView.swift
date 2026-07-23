@@ -18,6 +18,8 @@ struct StatusItemEditorView: View {
 
     @Environment(\.appearanceEditorInitialScrollTarget)
     private var initialScrollTarget
+    @Environment(\.appearanceEditorAddsDocumentationScrollSpace)
+    private var addsDocumentationScrollSpace
 
     private var panelAppearance: ResolvedPanelAppearance {
         AppearanceResolver.panel(
@@ -59,36 +61,14 @@ struct StatusItemEditorView: View {
         VStack(spacing: 0) {
             header
 
+            livePreview
+
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(
                         alignment: .leading,
                         spacing: 0
                     ) {
-                        VStack(
-                            alignment: .leading,
-                            spacing: 9
-                        ) {
-                            Text("实时预览")
-                                .appearanceEditorFont(
-                                    size: 9,
-                                    weight: .black,
-                                    design: .monospaced
-                                )
-                            HStack {
-                                Spacer()
-                                ThemeStatusChromePreview(
-                                    appearance: statusAppearance
-                                )
-                                Spacer()
-                            }
-                        }
-                        .padding(12)
-                        .brutalSectionDivider()
-                        .accessibilityIdentifier(
-                            "status-item-live-preview"
-                        )
-
                         textColorSection
                         .id(
                             AppearanceEditorInitialScrollTarget
@@ -140,7 +120,10 @@ struct StatusItemEditorView: View {
                             BrutalEditorStyle.paleTeal
                         )
 
-                        if initialScrollTarget == .statusItemControls {
+                        if
+                            addsDocumentationScrollSpace,
+                            initialScrollTarget == .statusItemControls
+                        {
                             Color.clear
                                 .frame(
                                     height:
@@ -184,6 +167,33 @@ struct StatusItemEditorView: View {
         )
         .foregroundStyle(BrutalEditorStyle.ink)
         .accessibilityIdentifier("status-item-editor")
+    }
+
+    private var livePreview: some View {
+        VStack(
+            alignment: .leading,
+            spacing: 9
+        ) {
+            Text("实时预览")
+                .appearanceEditorFont(
+                    size: 9,
+                    weight: .black,
+                    design: .monospaced
+                )
+            HStack {
+                Spacer()
+                ThemeStatusChromePreview(
+                    appearance: statusAppearance
+                )
+                Spacer()
+            }
+        }
+        .padding(12)
+        .brutalSectionDivider()
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier(
+            "status-item-live-preview"
+        )
     }
 
     private var textColorSection: some View {

@@ -31,6 +31,76 @@ enum MoreOverlayPage: Equatable, Sendable {
     }
 }
 
+enum MoreOverlayAppearanceDestination:
+    String,
+    CaseIterable,
+    Identifiable,
+    Sendable
+{
+    case overview
+    case panel
+    case statusItem
+    case stateColors
+
+    static let shortcuts: [Self] = [
+        .panel,
+        .statusItem,
+        .stateColors
+    ]
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .overview:
+            "外观"
+        case .panel:
+            "主面板"
+        case .statusItem:
+            "状态栏显示层"
+        case .stateColors:
+            "高级状态颜色"
+        }
+    }
+
+    var page: MoreOverlayPage {
+        switch self {
+        case .overview, .panel:
+            .appearance
+        case .statusItem:
+            .statusItem
+        case .stateColors:
+            .stateColors
+        }
+    }
+
+    var initialScrollTarget: AppearanceEditorInitialScrollTarget? {
+        switch self {
+        case .overview:
+            nil
+        case .panel:
+            .panelControls
+        case .statusItem:
+            .statusItemControls
+        case .stateColors:
+            .stateColorControls
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .overview:
+            "appearance-navigation-overview"
+        case .panel:
+            "appearance-navigation-panel"
+        case .statusItem:
+            "appearance-navigation-status-item"
+        case .stateColors:
+            "appearance-navigation-state-colors"
+        }
+    }
+}
+
 struct MoreOverlayLayout: Equatable {
     let interactionFrame: NSRect
     let decorationFrame: NSRect
@@ -297,6 +367,8 @@ struct MoreOverlayWindowPair {
 final class MoreOverlayPresenter: ObservableObject {
     @Published private(set) var isPresented = false
     @Published private(set) var page: MoreOverlayPage = .actions
+    private(set) var appearanceEditorInitialScrollTarget:
+        AppearanceEditorInitialScrollTarget?
 
     private let quotaStore: QuotaStore
     private let appearanceStore: AppearanceStore
@@ -422,6 +494,7 @@ final class MoreOverlayPresenter: ObservableObject {
             return
         }
         page = .actions
+        appearanceEditorInitialScrollTarget = nil
         isPresented = true
         replaceInteractionRoot()
         updateRootsAndFrames()
@@ -436,11 +509,15 @@ final class MoreOverlayPresenter: ObservableObject {
         installLocalEventMonitor()
     }
 
-    func navigate(to newPage: MoreOverlayPage) {
+    func navigate(
+        to newPage: MoreOverlayPage,
+        initialScrollTarget: AppearanceEditorInitialScrollTarget? = nil
+    ) {
         if newPage != page {
             colorPanelCoordinator.close()
         }
         page = newPage
+        appearanceEditorInitialScrollTarget = initialScrollTarget
         guard isPresented else { return }
         replaceInteractionRoot()
         updateRootsAndFrames()
@@ -468,6 +545,7 @@ final class MoreOverlayPresenter: ObservableObject {
         isPresented = false
         if resetPage {
             page = .actions
+            appearanceEditorInitialScrollTarget = nil
         }
     }
 
@@ -633,12 +711,17 @@ final class MoreOverlayPresenter: ObservableObject {
             quotaStore: quotaStore,
             appearanceStore: appearanceStore,
             page: page,
-            onNavigate: { [weak self] page in
-                self?.navigate(to: page)
+            onNavigate: { [weak self] page, initialScrollTarget in
+                self?.navigate(
+                    to: page,
+                    initialScrollTarget: initialScrollTarget
+                )
             },
             onOpenCustomColor: { [weak self] token in
                 self?.openColorPanel(for: token)
             },
+            initialScrollTarget:
+                appearanceEditorInitialScrollTarget,
             onOpenDeveloperPreview: developerAction
         )
 #else
@@ -646,12 +729,17 @@ final class MoreOverlayPresenter: ObservableObject {
             quotaStore: quotaStore,
             appearanceStore: appearanceStore,
             page: page,
-            onNavigate: { [weak self] page in
-                self?.navigate(to: page)
+            onNavigate: { [weak self] page, initialScrollTarget in
+                self?.navigate(
+                    to: page,
+                    initialScrollTarget: initialScrollTarget
+                )
             },
             onOpenCustomColor: { [weak self] token in
                 self?.openColorPanel(for: token)
-            }
+            },
+            initialScrollTarget:
+                appearanceEditorInitialScrollTarget
         )
 #endif
     }

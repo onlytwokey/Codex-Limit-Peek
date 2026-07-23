@@ -237,13 +237,49 @@ struct DocumentationPreviewRenderingTests {
             )
 
         #expect(themeSelector != panelControls)
-        #expect(statusControls != statusAtDefault)
+        #expect(statusControls == statusAtDefault)
         #expect(statusControls != stateColors)
         #expect(stateColors != stateColorsAtDefault)
+        #expect(
+            try topPixelRows(
+                in: themeSelector,
+                pointHeight: 120
+            ) == topPixelRows(
+                in: panelControls,
+                pointHeight: 120
+            )
+        )
+        #expect(
+            try topPixelRows(
+                in: stateColors,
+                pointHeight: 90
+            ) == topPixelRows(
+                in: stateColorsAtDefault,
+                pointHeight: 90
+            )
+        )
         #expect(
             try DocumentationPreviewRenderer
                 .preferenceArtifactsForTesting()
                 == preferenceArtifactsBefore
+        )
+    }
+
+    private func topPixelRows(
+        in png: Data,
+        pointHeight: CGFloat
+    ) throws -> Data {
+        let bitmap = try #require(NSBitmapImageRep(data: png))
+        let bitmapData = try #require(bitmap.bitmapData)
+        let scale = CGFloat(bitmap.pixelsHigh) / bitmap.size.height
+        let rowCount = min(
+            bitmap.pixelsHigh,
+            Int(ceil(pointHeight * scale))
+        )
+        let byteCount = rowCount * bitmap.bytesPerRow
+        return Data(
+            bytes: bitmapData,
+            count: byteCount
         )
     }
 }
