@@ -76,33 +76,60 @@ struct DocumentationPreviewRendererTests {
     }
 
     @Test @MainActor
-    func settingsAtlasUsesTheApprovedProductionPages() {
-        let cells = DocumentationPreviewRenderer.settingsCells
+    func panelSettingsAtlasUsesTheApprovedProductionTargets() {
+        let cells = DocumentationPreviewRenderer.panelSettingsCells
 
         #expect(
             cells.map(\.title)
                 == [
-                    "主题与基础色板",
-                    "面板字形、几何、阴影与材质",
-                    "状态栏显示层",
+                    "基础色板",
+                    "面板文字",
+                    "面板几何",
+                    "面板阴影与表面"
+                ]
+        )
+        #expect(
+            cells.map(\.page)
+                == Array(repeating: .appearance, count: 4)
+        )
+        #expect(
+            cells.map(\.scrollTarget)
+                == [
+                    .panelColorControls,
+                    .panelControls,
+                    .panelGeometryControls,
+                    .panelShadowControls
+                ]
+        )
+        for cell in cells {
+            #expect(cell.page.fixedSize != nil)
+        }
+    }
+
+    @Test @MainActor
+    func statusItemSettingsAtlasUsesTheApprovedProductionTargets() {
+        let cells = DocumentationPreviewRenderer
+            .statusItemSettingsCells
+
+        #expect(
+            cells.map(\.title)
+                == [
+                    "状态栏文字",
+                    "状态栏阴影",
+                    "状态栏几何",
                     "状态颜色"
                 ]
         )
         #expect(
             cells.map(\.page)
-                == [
-                    .appearance,
-                    .appearance,
-                    .statusItem,
-                    .statusItem
-                ]
+                == Array(repeating: .statusItem, count: 4)
         )
         #expect(
             cells.map(\.scrollTarget)
                 == [
-                    .themeSelector,
-                    .panelControls,
                     .statusItemControls,
+                    .statusItemShadowControls,
+                    .statusItemGeometryControls,
                     .stateColorControls
                 ]
         )

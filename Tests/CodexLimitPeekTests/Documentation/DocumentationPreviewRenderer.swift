@@ -195,21 +195,44 @@ enum DocumentationPreviewRenderer {
             + refreshHealthFixtures(for: weeklyOnly)
     }
 
-    static let settingsCells = [
+    static let panelSettingsCells = [
         DocumentationSettingsCell(
             page: .appearance,
-            scrollTarget: .themeSelector,
-            title: "主题与基础色板"
+            scrollTarget: .panelColorControls,
+            title: "基础色板"
         ),
         DocumentationSettingsCell(
             page: .appearance,
             scrollTarget: .panelControls,
-            title: "面板字形、几何、阴影与材质"
+            title: "面板文字"
         ),
+        DocumentationSettingsCell(
+            page: .appearance,
+            scrollTarget: .panelGeometryControls,
+            title: "面板几何"
+        ),
+        DocumentationSettingsCell(
+            page: .appearance,
+            scrollTarget: .panelShadowControls,
+            title: "面板阴影与表面"
+        )
+    ]
+
+    static let statusItemSettingsCells = [
         DocumentationSettingsCell(
             page: .statusItem,
             scrollTarget: .statusItemControls,
-            title: "状态栏显示层"
+            title: "状态栏文字"
+        ),
+        DocumentationSettingsCell(
+            page: .statusItem,
+            scrollTarget: .statusItemShadowControls,
+            title: "状态栏阴影"
+        ),
+        DocumentationSettingsCell(
+            page: .statusItem,
+            scrollTarget: .statusItemGeometryControls,
+            title: "状态栏几何"
         ),
         DocumentationSettingsCell(
             page: .statusItem,
@@ -436,10 +459,6 @@ enum DocumentationPreviewRenderer {
 
         let panelURL = directory
             .appendingPathComponent("panel-preview.png")
-        let settingsURL = directory
-            .appendingPathComponent(
-                "appearance-settings-loud.png"
-            )
         let quotaStatesURL = directory
             .appendingPathComponent(
                 "quota-states-loud.png"
@@ -447,6 +466,14 @@ enum DocumentationPreviewRenderer {
         let refreshStatesURL = directory
             .appendingPathComponent(
                 "refresh-states-loud.png"
+            )
+        let panelSettingsURL = directory
+            .appendingPathComponent(
+                "appearance-panel-settings-loud.png"
+            )
+        let statusSettingsURL = directory
+            .appendingPathComponent(
+                "appearance-status-settings-loud.png"
             )
 
         let panelPNG = try await renderThemePreviewForTesting(
@@ -467,7 +494,10 @@ enum DocumentationPreviewRenderer {
             pointSize: refreshStatesPointSize,
             statusBarThickness: statusBarThickness
         )
-        let settingsPNG = try await renderSettingsPreviewForTesting()
+        let panelSettingsPNG = try await
+            renderPanelSettingsPreviewForTesting()
+        let statusSettingsPNG = try await
+            renderStatusItemSettingsPreviewForTesting()
 
         try panelPNG.write(to: panelURL, options: .atomic)
         try quotaStatesPNG.write(
@@ -478,12 +508,20 @@ enum DocumentationPreviewRenderer {
             to: refreshStatesURL,
             options: .atomic
         )
-        try settingsPNG.write(to: settingsURL, options: .atomic)
+        try panelSettingsPNG.write(
+            to: panelSettingsURL,
+            options: .atomic
+        )
+        try statusSettingsPNG.write(
+            to: statusSettingsURL,
+            options: .atomic
+        )
         return [
             panelURL,
             quotaStatesURL,
             refreshStatesURL,
-            settingsURL
+            panelSettingsURL,
+            statusSettingsURL
         ]
     }
 
@@ -501,12 +539,31 @@ enum DocumentationPreviewRenderer {
         )
     }
 
-    static func renderSettingsPreviewForTesting() async throws -> Data {
+    static func renderPanelSettingsPreviewForTesting()
+        async throws -> Data
+    {
+        try await renderSettingsAtlasForTesting(
+            cells: panelSettingsCells
+        )
+    }
+
+    static func renderStatusItemSettingsPreviewForTesting()
+        async throws -> Data
+    {
+        try await renderSettingsAtlasForTesting(
+            cells: statusItemSettingsCells
+        )
+    }
+
+    private static func renderSettingsAtlasForTesting(
+        cells: [DocumentationSettingsCell]
+    ) async throws -> Data {
         let stores = try makeIsolatedStores()
         return try await rasterize(
             DocumentationSettingsAtlas(
                 appearanceStore: stores.appearanceStore,
-                quotaStore: stores.quotaStore
+                quotaStore: stores.quotaStore,
+                cells: cells
             ),
             pointSize: settingsPointSize,
             statusBarThickness: statusBarThickness
@@ -1263,6 +1320,7 @@ private struct DocumentationOverlayPage: View {
 private struct DocumentationSettingsAtlas: View {
     @ObservedObject var appearanceStore: AppearanceStore
     @ObservedObject var quotaStore: QuotaStore
+    let cells: [DocumentationSettingsCell]
 
     var body: some View {
         ZStack {
@@ -1272,10 +1330,7 @@ private struct DocumentationSettingsAtlas: View {
                 HStack(alignment: .top, spacing: 16) {
                     ForEach(
                         Array(
-                            DocumentationPreviewRenderer
-                                .settingsCells
-                                .prefix(2)
-                                .enumerated()
+                            cells.prefix(2).enumerated()
                         ),
                         id: \.offset
                     ) { _, cell in
@@ -1286,10 +1341,7 @@ private struct DocumentationSettingsAtlas: View {
                 HStack(alignment: .top, spacing: 16) {
                     ForEach(
                         Array(
-                            DocumentationPreviewRenderer
-                                .settingsCells
-                                .suffix(2)
-                                .enumerated()
+                            cells.suffix(2).enumerated()
                         ),
                         id: \.offset
                     ) { _, cell in

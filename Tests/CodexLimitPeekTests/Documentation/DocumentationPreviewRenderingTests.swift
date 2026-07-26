@@ -131,7 +131,8 @@ struct DocumentationPreviewRenderingTests {
         #expect(
             first.map(\.lastPathComponent).sorted()
                 == [
-                    "appearance-settings-loud.png",
+                    "appearance-panel-settings-loud.png",
+                    "appearance-status-settings-loud.png",
                     "panel-preview.png",
                     "quota-states-loud.png",
                     "refresh-states-loud.png"
@@ -146,7 +147,8 @@ struct DocumentationPreviewRenderingTests {
             "panel-preview.png": (2_400, 900),
             "quota-states-loud.png": (1_840, 720),
             "refresh-states-loud.png": (1_840, 1_350),
-            "appearance-settings-loud.png": (1_440, 2_400)
+            "appearance-panel-settings-loud.png": (1_440, 2_400),
+            "appearance-status-settings-loud.png": (1_440, 2_400)
         ]
         var combinedBytes = 0
 
@@ -175,6 +177,21 @@ struct DocumentationPreviewRenderingTests {
         }
 
         #expect(combinedBytes <= 5 * 1_024 * 1_024)
+
+        let firstByName = Dictionary(
+            uniqueKeysWithValues:
+                first.map { ($0.lastPathComponent, $0) }
+        )
+        let panelSettingsURL = try #require(
+            firstByName["appearance-panel-settings-loud.png"]
+        )
+        let statusSettingsURL = try #require(
+            firstByName["appearance-status-settings-loud.png"]
+        )
+        #expect(
+            try Data(contentsOf: panelSettingsURL)
+                != Data(contentsOf: statusSettingsURL)
+        )
     }
 
     @Test @MainActor
