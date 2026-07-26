@@ -147,8 +147,8 @@ struct DocumentationPreviewRenderingTests {
             "panel-preview.png": (2_400, 900),
             "quota-states-loud.png": (1_840, 720),
             "refresh-states-loud.png": (1_840, 1_350),
-            "appearance-panel-settings-loud.png": (1_440, 2_400),
-            "appearance-status-settings-loud.png": (1_440, 2_400)
+            "appearance-panel-settings-loud.png": (720, 1_200),
+            "appearance-status-settings-loud.png": (720, 1_200)
         ]
         var combinedBytes = 0
 

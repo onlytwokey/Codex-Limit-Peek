@@ -116,7 +116,7 @@ Appearance editing changes visual presentation only. It does not change quota th
 ### Panel Appearance
 
 <p align="center">
-  <img src="docs/images/appearance-panel-settings-loud.png" alt="Color, text, geometry, and shadow sections of the LOUD panel editor" width="720">
+  <img src="docs/images/appearance-panel-settings-loud.png" alt="LOUD panel editor base-palette example" width="720">
 </p>
 
 The panel editor keeps a live panel-and-status preview fixed at the top while the controls scroll independently below it. The pinned Color / Text / Geometry / Shadow row jumps directly to each section.
@@ -133,7 +133,7 @@ Selecting the status item inside the fixed preview opens its dedicated editor.
 ### Status Item Appearance
 
 <p align="center">
-  <img src="docs/images/appearance-status-settings-loud.png" alt="Text, shadow, geometry, and state-color sections of the LOUD status-item editor" width="720">
+  <img src="docs/images/appearance-status-settings-loud.png" alt="LOUD status-item editor state-color example" width="720">
 </p>
 
 The status-item editor also keeps its live preview fixed above independently scrolling controls, with pinned Text / Shadow / Geometry / State Colors navigation. Hovering a quota state previews it; clicking pins it.

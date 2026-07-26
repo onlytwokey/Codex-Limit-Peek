@@ -121,8 +121,8 @@ enum DocumentationPreviewRenderer {
         height: 675
     )
     static let settingsPointSize = NSSize(
-        width: 720,
-        height: 1_200
+        width: 360,
+        height: 600
     )
     static let scale: CGFloat = 2
     static let statusBarThickness: CGFloat = 22
@@ -195,51 +195,17 @@ enum DocumentationPreviewRenderer {
             + refreshHealthFixtures(for: weeklyOnly)
     }
 
-    static let panelSettingsCells = [
-        DocumentationSettingsCell(
-            page: .appearance,
-            scrollTarget: .panelColorControls,
-            title: "基础色板"
-        ),
-        DocumentationSettingsCell(
-            page: .appearance,
-            scrollTarget: .panelControls,
-            title: "面板文字"
-        ),
-        DocumentationSettingsCell(
-            page: .appearance,
-            scrollTarget: .panelGeometryControls,
-            title: "面板几何"
-        ),
-        DocumentationSettingsCell(
-            page: .appearance,
-            scrollTarget: .panelShadowControls,
-            title: "面板阴影与表面"
-        )
-    ]
+    static let panelSettingsCell = DocumentationSettingsCell(
+        page: .appearance,
+        scrollTarget: .panelColorControls,
+        title: "基础色板"
+    )
 
-    static let statusItemSettingsCells = [
-        DocumentationSettingsCell(
-            page: .statusItem,
-            scrollTarget: .statusItemControls,
-            title: "状态栏文字"
-        ),
-        DocumentationSettingsCell(
-            page: .statusItem,
-            scrollTarget: .statusItemShadowControls,
-            title: "状态栏阴影"
-        ),
-        DocumentationSettingsCell(
-            page: .statusItem,
-            scrollTarget: .statusItemGeometryControls,
-            title: "状态栏几何"
-        ),
-        DocumentationSettingsCell(
-            page: .statusItem,
-            scrollTarget: .stateColorControls,
-            title: "状态颜色"
-        )
-    ]
+    static let statusItemSettingsCell = DocumentationSettingsCell(
+        page: .statusItem,
+        scrollTarget: .stateColorControls,
+        title: "状态颜色"
+    )
 
     private static func dualWindowSnapshot(
         remainingPercent: Int,
@@ -542,28 +508,28 @@ enum DocumentationPreviewRenderer {
     static func renderPanelSettingsPreviewForTesting()
         async throws -> Data
     {
-        try await renderSettingsAtlasForTesting(
-            cells: panelSettingsCells
+        try await renderSettingsPreviewForTesting(
+            cell: panelSettingsCell
         )
     }
 
     static func renderStatusItemSettingsPreviewForTesting()
         async throws -> Data
     {
-        try await renderSettingsAtlasForTesting(
-            cells: statusItemSettingsCells
+        try await renderSettingsPreviewForTesting(
+            cell: statusItemSettingsCell
         )
     }
 
-    private static func renderSettingsAtlasForTesting(
-        cells: [DocumentationSettingsCell]
+    private static func renderSettingsPreviewForTesting(
+        cell: DocumentationSettingsCell
     ) async throws -> Data {
         let stores = try makeIsolatedStores()
         return try await rasterize(
-            DocumentationSettingsAtlas(
+            DocumentationSettingsPreview(
                 appearanceStore: stores.appearanceStore,
                 quotaStore: stores.quotaStore,
-                cells: cells
+                cell: cell
             ),
             pointSize: settingsPointSize,
             statusBarThickness: statusBarThickness
@@ -1317,40 +1283,18 @@ private struct DocumentationOverlayPage: View {
     }
 }
 
-private struct DocumentationSettingsAtlas: View {
+private struct DocumentationSettingsPreview: View {
     @ObservedObject var appearanceStore: AppearanceStore
     @ObservedObject var quotaStore: QuotaStore
-    let cells: [DocumentationSettingsCell]
+    let cell: DocumentationSettingsCell
 
     var body: some View {
         ZStack {
             DocumentationLOUDStyle.yellow
 
-            VStack(spacing: 12) {
-                HStack(alignment: .top, spacing: 16) {
-                    ForEach(
-                        Array(
-                            cells.prefix(2).enumerated()
-                        ),
-                        id: \.offset
-                    ) { _, cell in
-                        atlasCell(cell)
-                    }
-                }
-
-                HStack(alignment: .top, spacing: 16) {
-                    ForEach(
-                        Array(
-                            cells.suffix(2).enumerated()
-                        ),
-                        id: \.offset
-                    ) { _, cell in
-                        atlasCell(cell)
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            settingsCell
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
         }
         .frame(
             width: DocumentationPreviewRenderer
@@ -1360,9 +1304,7 @@ private struct DocumentationSettingsAtlas: View {
         )
     }
 
-    private func atlasCell(
-        _ cell: DocumentationSettingsCell
-    ) -> some View {
+    private var settingsCell: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(cell.title)
                 .font(
@@ -1383,6 +1325,8 @@ private struct DocumentationSettingsAtlas: View {
                 page: cell.page,
                 scrollTarget: cell.scrollTarget
             )
+            .frame(height: 530, alignment: .top)
+            .clipped()
             .offset(
                 y: cell.page == .statusItem ? 12 : 0
             )

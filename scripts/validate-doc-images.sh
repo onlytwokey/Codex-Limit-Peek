@@ -11,8 +11,8 @@ ASSETS=(
   "appearance-panel-settings-loud.png"
   "appearance-status-settings-loud.png"
 )
-WIDTHS=(2400 1840 1840 1440 1440)
-HEIGHTS=(900 720 1350 2400 2400)
+WIDTHS=(2400 1840 1840 720 720)
+HEIGHTS=(900 720 1350 1200 1200)
 PATHS=()
 check_repository_contract=0
 
@@ -179,15 +179,15 @@ if (( check_repository_contract )); then
     '<img src="docs/images/panel-preview.png" alt="LOUD、BOLD、FROST 三套主题的状态栏与额度面板预览" width="860">'
     '<img src="docs/images/quota-states-loud.png" alt="LOUD 主题下正常、警告和危险额度状态的生产状态栏" width="860">'
     '<img src="docs/images/refresh-states-loud.png" alt="LOUD 主题下双窗口与单窗口的实时、确认中和确认失败状态" width="860">'
-    '<img src="docs/images/appearance-panel-settings-loud.png" alt="LOUD 主题面板设置中的颜色、文字、几何和阴影区域" width="720">'
-    '<img src="docs/images/appearance-status-settings-loud.png" alt="LOUD 主题状态栏设置中的文字、阴影、几何和状态颜色区域" width="720">'
+    '<img src="docs/images/appearance-panel-settings-loud.png" alt="LOUD 主题面板设置的基础色板示例" width="720">'
+    '<img src="docs/images/appearance-status-settings-loud.png" alt="LOUD 主题状态栏设置的状态颜色示例" width="720">'
   )
   required_english_references=(
     '<img src="docs/images/panel-preview.png" alt="LOUD, BOLD, and FROST status items and quota panels" width="860">'
     '<img src="docs/images/quota-states-loud.png" alt="Production status items for normal, warning, and danger quota states in LOUD" width="860">'
     '<img src="docs/images/refresh-states-loud.png" alt="Live, confirming, and confirmed-failure states for dual- and single-window layouts in LOUD" width="860">'
-    '<img src="docs/images/appearance-panel-settings-loud.png" alt="Color, text, geometry, and shadow sections of the LOUD panel editor" width="720">'
-    '<img src="docs/images/appearance-status-settings-loud.png" alt="Text, shadow, geometry, and state-color sections of the LOUD status-item editor" width="720">'
+    '<img src="docs/images/appearance-panel-settings-loud.png" alt="LOUD panel editor base-palette example" width="720">'
+    '<img src="docs/images/appearance-status-settings-loud.png" alt="LOUD status-item editor state-color example" width="720">'
   )
 
   check_readme_contract \

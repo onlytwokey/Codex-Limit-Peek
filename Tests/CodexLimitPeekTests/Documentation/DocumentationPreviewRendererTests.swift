@@ -76,66 +76,24 @@ struct DocumentationPreviewRendererTests {
     }
 
     @Test @MainActor
-    func panelSettingsAtlasUsesTheApprovedProductionTargets() {
-        let cells = DocumentationPreviewRenderer.panelSettingsCells
+    func panelSettingsImageUsesTheBasePaletteTarget() {
+        let cell = DocumentationPreviewRenderer.panelSettingsCell
 
-        #expect(
-            cells.map(\.title)
-                == [
-                    "基础色板",
-                    "面板文字",
-                    "面板几何",
-                    "面板阴影与表面"
-                ]
-        )
-        #expect(
-            cells.map(\.page)
-                == Array(repeating: .appearance, count: 4)
-        )
-        #expect(
-            cells.map(\.scrollTarget)
-                == [
-                    .panelColorControls,
-                    .panelControls,
-                    .panelGeometryControls,
-                    .panelShadowControls
-                ]
-        )
-        for cell in cells {
-            #expect(cell.page.fixedSize != nil)
-        }
+        #expect(cell.title == "基础色板")
+        #expect(cell.page == .appearance)
+        #expect(cell.scrollTarget == .panelColorControls)
+        #expect(cell.page.fixedSize != nil)
     }
 
     @Test @MainActor
-    func statusItemSettingsAtlasUsesTheApprovedProductionTargets() {
-        let cells = DocumentationPreviewRenderer
-            .statusItemSettingsCells
+    func statusItemSettingsImageUsesTheStateColorsTarget() {
+        let cell = DocumentationPreviewRenderer
+            .statusItemSettingsCell
 
-        #expect(
-            cells.map(\.title)
-                == [
-                    "状态栏文字",
-                    "状态栏阴影",
-                    "状态栏几何",
-                    "状态颜色"
-                ]
-        )
-        #expect(
-            cells.map(\.page)
-                == Array(repeating: .statusItem, count: 4)
-        )
-        #expect(
-            cells.map(\.scrollTarget)
-                == [
-                    .statusItemControls,
-                    .statusItemShadowControls,
-                    .statusItemGeometryControls,
-                    .stateColorControls
-                ]
-        )
-        for cell in cells {
-            #expect(cell.page.fixedSize != nil)
-        }
+        #expect(cell.title == "状态颜色")
+        #expect(cell.page == .statusItem)
+        #expect(cell.scrollTarget == .stateColorControls)
+        #expect(cell.page.fixedSize != nil)
     }
 
     @Test @MainActor

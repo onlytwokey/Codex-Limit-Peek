@@ -116,7 +116,7 @@ README 中的界面图都由仓库内的本地文档渲染器使用固定演示�
 ### 面板设置
 
 <p align="center">
-  <img src="docs/images/appearance-panel-settings-loud.png" alt="LOUD 主题面板设置中的颜色、文字、几何和阴影区域" width="720">
+  <img src="docs/images/appearance-panel-settings-loud.png" alt="LOUD 主题面板设置的基础色板示例" width="720">
 </p>
 
 面板设置顶部始终保留当前主题的面板与状态栏实时预览，下方控制区独立滚动；滚动时，“颜色 / 文字 / 几何 / 阴影”快捷导航保持置顶。
@@ -133,7 +133,7 @@ README 中的界面图都由仓库内的本地文档渲染器使用固定演示�
 ### 状态栏设置
 
 <p align="center">
-  <img src="docs/images/appearance-status-settings-loud.png" alt="LOUD 主题状态栏设置中的文字、阴影、几何和状态颜色区域" width="720">
+  <img src="docs/images/appearance-status-settings-loud.png" alt="LOUD 主题状态栏设置的状态颜色示例" width="720">
 </p>
 
 状态栏设置同样保留固定实时预览和独立滚动控制区，并提供“文字 / 阴影 / 几何 / 状态颜色”快捷导航。预览中的状态可以悬停查看，也可以点击固定。
