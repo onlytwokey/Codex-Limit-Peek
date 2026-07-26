@@ -94,14 +94,14 @@ struct MoreOverlayTests {
     }
 
     @Test
-    func appearanceShortcutsMapToApprovedPagesAndControlAnchors() {
-        #expect(
-            MoreOverlayAppearanceDestination.shortcuts == [
-                .panel,
-                .statusItem,
-                .stateColors
-            ]
-        )
+    func settingsPagesFollowTheApprovedBackHierarchy() {
+        #expect(MoreOverlayPage.actions.backDestination == nil)
+        #expect(MoreOverlayPage.appearance.backDestination == .actions)
+        #expect(MoreOverlayPage.statusItem.backDestination == .appearance)
+    }
+
+    @Test
+    func appearanceDestinationsMapToApprovedPagesAndControlAnchors() {
         #expect(
             MoreOverlayAppearanceDestination.overview.page
                 == .appearance
@@ -124,25 +124,15 @@ struct MoreOverlayTests {
         )
         #expect(
             MoreOverlayAppearanceDestination.statusItem
-                .initialScrollTarget == .statusItemControls
+                .initialScrollTarget == .themeSelector
         )
         #expect(
             MoreOverlayAppearanceDestination.stateColors.page
-                == .stateColors
+                == .statusItem
         )
         #expect(
             MoreOverlayAppearanceDestination.stateColors
                 .initialScrollTarget == .stateColorControls
-        )
-        #expect(
-            MoreOverlayAppearanceDestination.allCases.map(
-                \.accessibilityIdentifier
-            ) == [
-                "appearance-navigation-overview",
-                "appearance-navigation-panel",
-                "appearance-navigation-status-item",
-                "appearance-navigation-state-colors"
-            ]
         )
     }
 
@@ -175,7 +165,7 @@ struct MoreOverlayTests {
         )
 
         presenter.navigate(
-            to: .stateColors,
+            to: .statusItem,
             initialScrollTarget: .stateColorControls
         )
         presenter.close()
@@ -184,6 +174,57 @@ struct MoreOverlayTests {
         #expect(
             presenter.appearanceEditorInitialScrollTarget == nil
         )
+    }
+
+    @Test @MainActor
+    func directSettingsEntryPresentsAndReturnsToAppearanceOverview()
+        throws
+    {
+        let suite = "MoreOverlayTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let presenter = MoreOverlayPresenter(
+            quotaStore: QuotaStore(defaults: defaults),
+            appearanceStore: AppearanceStore(defaults: defaults)
+        )
+        let parent = NSPanel(
+            contentRect: NSRect(x: 400, y: 620, width: 380, height: 260),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let container = NSView(
+            frame: NSRect(x: 0, y: 0, width: 380, height: 260)
+        )
+        let anchor = MoreOverlayAnchorView(
+            frame: NSRect(x: 300, y: 220, width: 58, height: 25)
+        )
+        container.addSubview(anchor)
+        parent.contentView = container
+        presenter.attach(to: parent)
+        presenter.setAnchorView(anchor)
+        presenter.present(.overview)
+        defer { presenter.close() }
+
+        #expect(presenter.isPresented)
+        #expect(presenter.page == .appearance)
+        #expect(presenter.appearanceEditorInitialScrollTarget == nil)
+        let pair = try #require(presenter.ensureWindowPair())
+        #expect(
+            pair.interaction.frame.size
+                == MoreOverlayMetrics.appearanceSize
+        )
+
+        presenter.navigate(
+            to: .statusItem,
+            initialScrollTarget: .statusItemControls
+        )
+        presenter.present(.overview)
+
+        #expect(presenter.isPresented)
+        #expect(presenter.page == .appearance)
+        #expect(presenter.appearanceEditorInitialScrollTarget == nil)
     }
 
     @Test
@@ -452,7 +493,7 @@ struct MoreOverlayTests {
                     target: .palette(.background)
                 )
         )
-        presenter.navigate(to: .stateColors)
+        presenter.navigate(to: .statusItem)
         #expect(coordinator.activeContext == nil)
 
         presenter.openColorPanel(for: .palette(.surface))

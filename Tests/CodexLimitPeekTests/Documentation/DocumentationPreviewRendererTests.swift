@@ -85,7 +85,7 @@ struct DocumentationPreviewRendererTests {
                     "主题与基础色板",
                     "面板字形、几何、阴影与材质",
                     "状态栏显示层",
-                    "高级状态颜色"
+                    "状态颜色"
                 ]
         )
         #expect(
@@ -94,7 +94,7 @@ struct DocumentationPreviewRendererTests {
                     .appearance,
                     .appearance,
                     .statusItem,
-                    .stateColors
+                    .statusItem
                 ]
         )
         #expect(

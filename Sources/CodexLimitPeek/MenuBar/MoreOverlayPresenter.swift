@@ -6,13 +6,12 @@ enum MoreOverlayPage: Equatable, Sendable {
     case actions
     case appearance
     case statusItem
-    case stateColors
 
     var width: CGFloat {
         switch self {
         case .actions:
             MoreOverlayMetrics.actionsWidth
-        case .appearance, .statusItem, .stateColors:
+        case .appearance, .statusItem:
             320
         }
     }
@@ -25,43 +24,26 @@ enum MoreOverlayPage: Equatable, Sendable {
             MoreOverlayMetrics.appearanceSize
         case .statusItem:
             MoreOverlayMetrics.statusItemSize
-        case .stateColors:
-            MoreOverlayMetrics.stateColorsSize
+        }
+    }
+
+    var backDestination: MoreOverlayPage? {
+        switch self {
+        case .actions:
+            nil
+        case .appearance:
+            .actions
+        case .statusItem:
+            .appearance
         }
     }
 }
 
-enum MoreOverlayAppearanceDestination:
-    String,
-    CaseIterable,
-    Identifiable,
-    Sendable
-{
+enum MoreOverlayAppearanceDestination: Sendable {
     case overview
     case panel
     case statusItem
     case stateColors
-
-    static let shortcuts: [Self] = [
-        .panel,
-        .statusItem,
-        .stateColors
-    ]
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .overview:
-            "外观"
-        case .panel:
-            "主面板"
-        case .statusItem:
-            "状态栏显示层"
-        case .stateColors:
-            "高级状态颜色"
-        }
-    }
 
     var page: MoreOverlayPage {
         switch self {
@@ -70,7 +52,7 @@ enum MoreOverlayAppearanceDestination:
         case .statusItem:
             .statusItem
         case .stateColors:
-            .stateColors
+            .statusItem
         }
     }
 
@@ -81,22 +63,9 @@ enum MoreOverlayAppearanceDestination:
         case .panel:
             .panelControls
         case .statusItem:
-            .statusItemControls
+            .themeSelector
         case .stateColors:
             .stateColorControls
-        }
-    }
-
-    var accessibilityIdentifier: String {
-        switch self {
-        case .overview:
-            "appearance-navigation-overview"
-        case .panel:
-            "appearance-navigation-panel"
-        case .statusItem:
-            "appearance-navigation-status-item"
-        case .stateColors:
-            "appearance-navigation-state-colors"
         }
     }
 }
@@ -114,7 +83,6 @@ enum MoreOverlayMetrics {
     static let actionsWidth: CGFloat = 224
     static let appearanceSize = NSSize(width: 320, height: 548)
     static let statusItemSize = NSSize(width: 320, height: 548)
-    static let stateColorsSize = NSSize(width: 320, height: 430)
 
     static func layout(
         anchorRect: NSRect,
@@ -486,6 +454,27 @@ final class MoreOverlayPresenter: ObservableObject {
     }
 
     func present() {
+        present(page: .actions, initialScrollTarget: nil)
+    }
+
+    func present(_ destination: MoreOverlayAppearanceDestination) {
+        if isPresented {
+            navigate(
+                to: destination.page,
+                initialScrollTarget: destination.initialScrollTarget
+            )
+            return
+        }
+        present(
+            page: destination.page,
+            initialScrollTarget: destination.initialScrollTarget
+        )
+    }
+
+    private func present(
+        page newPage: MoreOverlayPage,
+        initialScrollTarget: AppearanceEditorInitialScrollTarget?
+    ) {
         guard
             parentWindow != nil,
             anchorView?.screenRect != nil,
@@ -493,8 +482,8 @@ final class MoreOverlayPresenter: ObservableObject {
         else {
             return
         }
-        page = .actions
-        appearanceEditorInitialScrollTarget = nil
+        page = newPage
+        appearanceEditorInitialScrollTarget = initialScrollTarget
         isPresented = true
         replaceInteractionRoot()
         updateRootsAndFrames()
@@ -717,6 +706,9 @@ final class MoreOverlayPresenter: ObservableObject {
                     initialScrollTarget: initialScrollTarget
                 )
             },
+            onReturnToPanel: { [weak self] in
+                self?.close()
+            },
             onOpenCustomColor: { [weak self] token in
                 self?.openColorPanel(for: token)
             },
@@ -734,6 +726,9 @@ final class MoreOverlayPresenter: ObservableObject {
                     to: page,
                     initialScrollTarget: initialScrollTarget
                 )
+            },
+            onReturnToPanel: { [weak self] in
+                self?.close()
             },
             onOpenCustomColor: { [weak self] token in
                 self?.openColorPanel(for: token)

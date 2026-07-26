@@ -23,7 +23,10 @@ final class QuotaStore: ObservableObject {
     private var failureTracker = RefreshFailureTracker()
     private(set) var isRefreshing = false
     private(set) var speakAfterRefresh = false
-    private let refreshQueue = DispatchQueue(label: "io.github.onlytwokey.CodexLimitPeek.refresh", qos: .utility)
+    private let refreshQueue = DispatchQueue(
+        label: "io.github.onlytwokey.CodexLimitPeek.MenuBar.refresh",
+        qos: .utility
+    )
     private(set) var speechSynthesizer: AVSpeechSynthesizer?
     private var notifiedLevels = Set<Int>()
     private let provider: QuotaProvider

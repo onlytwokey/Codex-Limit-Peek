@@ -27,6 +27,15 @@ CODEX_LIMIT_PEEK_SKIP_STOP=1 \
 APP_PATH="$TEST_APPS/Codex Limit Peek.app"
 test -x "$APP_PATH/Contents/MacOS/CodexLimitPeek"
 codesign --verify --deep --strict "$APP_PATH"
+ACTUAL_BUNDLE_ID="$(
+  /usr/libexec/PlistBuddy \
+    -c 'Print :CFBundleIdentifier' \
+    "$APP_PATH/Contents/Info.plist"
+)"
+if [[ "$ACTUAL_BUNDLE_ID" != "io.github.onlytwokey.CodexLimitPeek.MenuBar" ]]; then
+  echo "unexpected installed bundle identifier: $ACTUAL_BUNDLE_ID" >&2
+  exit 1
+fi
 
 if find "$TEST_TMP" -maxdepth 1 -name 'codex-limit-peek-build.*' -print -quit | grep -q .; then
   echo "install scratch directory was not removed" >&2

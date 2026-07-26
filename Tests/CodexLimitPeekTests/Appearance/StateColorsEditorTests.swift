@@ -68,4 +68,30 @@ struct StateColorsEditorTests {
                 == "81%，1小时34分钟，周额度49%"
         )
     }
+
+    @Test
+    func colorControlsSelectTheMatchingPreviewState() {
+        #expect(
+            StateColorsEditorPreviewState.previewState(for: .normal)
+                == .normal
+        )
+        #expect(
+            StateColorsEditorPreviewState.previewState(for: .warning)
+                == .warning
+        )
+        #expect(
+            StateColorsEditorPreviewState.previewState(for: .danger)
+                == .danger
+        )
+        #expect(
+            StateColorsEditorPreviewState.previewState(
+                for: .unavailableBase
+            ) == .unavailable
+        )
+        #expect(
+            StateColorsEditorPreviewState.previewState(
+                for: .unavailableStripe
+            ) == .unavailable
+        )
+    }
 }

@@ -80,6 +80,35 @@ struct AppDelegateLifecycleTests {
         #expect(!delegate.isPanelWindowLoaded)
         #expect(!delegate.isMoreOverlayWindowLoaded)
     }
+
+    @Test @MainActor
+    func productionStatusItemUsesTheSupportedButtonHost() throws {
+        let delegate = AppDelegate(arguments: ["CodexLimitPeek"])
+        defer { delegate.removeStatusItemForTesting() }
+
+        delegate.configureStatusItemForTesting()
+
+        #expect(delegate.statusItemUsesButtonHostForTesting)
+        #expect(delegate.statusItemIsVisibleForTesting)
+        #expect(delegate.statusItemButtonHasWindowForTesting)
+        #expect(delegate.statusItemButtonHasImageForTesting)
+        #expect(try #require(delegate.statusItemLengthForTesting) > 0)
+    }
+
+    @Test @MainActor
+    func productionStatusItemRegistrationIsIdempotent() throws {
+        let delegate = AppDelegate(arguments: ["CodexLimitPeek"])
+        defer { delegate.removeStatusItemForTesting() }
+
+        delegate.configureStatusItemForTesting()
+        let firstIdentity = try #require(
+            delegate.statusItemIdentityForTesting
+        )
+
+        delegate.configureStatusItemForTesting()
+
+        #expect(delegate.statusItemIdentityForTesting == firstIdentity)
+    }
 #endif
 
     @Test @MainActor
@@ -160,7 +189,7 @@ struct AppDelegateLifecycleTests {
     @Test @MainActor
     func closingMainPanelResetsMoreNavigation() {
         let delegate = AppDelegate()
-        delegate.setMoreOverlayPageForTesting(.stateColors)
+        delegate.setMoreOverlayPageForTesting(.statusItem)
 
         delegate.closePanelForTesting()
 

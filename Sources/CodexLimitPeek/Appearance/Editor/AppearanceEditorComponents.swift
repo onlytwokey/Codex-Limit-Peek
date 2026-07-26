@@ -517,6 +517,23 @@ struct AppearanceColorRow: View {
     }
 }
 
+struct AppearanceEditorInlineNote: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .appearanceEditorFont(
+                size: 7.5,
+                weight: .bold,
+                design: .monospaced
+            )
+            .lineSpacing(1.5)
+            .opacity(0.58)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 struct AppearanceCustomColorButton: View {
     let title: String
     let color: AppearanceColor

@@ -6,6 +6,87 @@ import Testing
 
 struct StatusItemEditorTests {
     @Test
+    func guidanceInvitesPinningOnlyWhileAStateIsHovered() {
+        #expect(
+            StatusDisplayPreviewInteraction.guidanceText(
+                hovered: nil
+            ) == "悬停状态查看效果"
+        )
+        #expect(
+            StatusDisplayPreviewInteraction.guidanceText(
+                hovered: .warning
+            ) == "点击固定状态显示"
+        )
+    }
+
+    @Test
+    func hoverTemporarilyOverridesAndThenRestoresTheSelectedState() {
+        #expect(
+            StatusDisplayPreviewInteraction.previewState(
+                selected: .normal,
+                hovered: .danger
+            ) == .danger
+        )
+        #expect(
+            StatusDisplayPreviewInteraction.previewState(
+                selected: .warning,
+                hovered: nil
+            ) == .warning
+        )
+
+        let entered = StatusDisplayPreviewInteraction.hoveredState(
+            current: nil,
+            target: .danger,
+            isHovering: true
+        )
+        #expect(entered == .danger)
+        #expect(
+            StatusDisplayPreviewInteraction.hoveredState(
+                current: entered,
+                target: .warning,
+                isHovering: false
+            ) == .danger
+        )
+        #expect(
+            StatusDisplayPreviewInteraction.hoveredState(
+                current: entered,
+                target: .danger,
+                isHovering: false
+            ) == nil
+        )
+    }
+
+    @Test
+    func sectionNavigationUsesTheApprovedOrderAnchorsAndIdentifiers() {
+        let destinations = StatusItemEditorSectionDestination.allCases
+
+        #expect(
+            destinations.map(\.title) == [
+                "文字",
+                "阴影",
+                "几何",
+                "状态颜色"
+            ]
+        )
+        #expect(
+            destinations.map(\.scrollTarget) == [
+                .statusItemControls,
+                .statusItemShadowControls,
+                .statusItemGeometryControls,
+                .stateColorControls
+            ]
+        )
+        #expect(
+            destinations.map(\.accessibilityIdentifier) == [
+                "status-item-section-navigation-text",
+                "status-item-section-navigation-shadow",
+                "status-item-section-navigation-geometry",
+                "status-item-section-navigation-state-colors"
+            ]
+        )
+    }
+
+    @Test
     func exposesAllEightApprovedFieldsInOrder() {
         #expect(
             StatusItemEditorField.allCases.map(\.title) == [

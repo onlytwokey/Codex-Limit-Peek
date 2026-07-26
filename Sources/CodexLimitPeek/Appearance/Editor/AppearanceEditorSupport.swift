@@ -4,7 +4,12 @@ import SwiftUI
 enum AppearanceEditorInitialScrollTarget: Hashable, Sendable {
     case themeSelector
     case panelControls
+    case panelColorControls
+    case panelGeometryControls
+    case panelShadowControls
     case statusItemControls
+    case statusItemShadowControls
+    case statusItemGeometryControls
     case stateColorControls
 }
 
@@ -13,10 +18,16 @@ enum AppearanceEditorDocumentationMetrics {
         for target: AppearanceEditorInitialScrollTarget?
     ) -> CGFloat {
         switch target {
-        case .panelControls, .statusItemControls:
+        case .panelControls,
+             .panelColorControls,
+             .panelGeometryControls,
+             .panelShadowControls:
+            MoreOverlayMetrics.appearanceSize.height
+        case .statusItemControls,
+             .statusItemShadowControls,
+             .statusItemGeometryControls,
+             .stateColorControls:
             MoreOverlayMetrics.statusItemSize.height
-        case .stateColorControls:
-            MoreOverlayMetrics.stateColorsSize.height
         case nil, .themeSelector:
             0
         }

@@ -258,6 +258,30 @@ struct StatusItemAppearanceTests {
     }
 
     @Test @MainActor
+    func detachedRendererProducesVisibleNonTemplatePixels() throws {
+        let view = CompactStatusItemView()
+        view.update(
+            title: "81% | 2h 8m",
+            weeklyTitle: "49%",
+            appearance: resolvedStatus(for: .loud),
+            showsFailurePattern: false,
+            tooltip: "额度状态"
+        )
+
+        let image = try #require(view.renderedStatusImage())
+        let data = try #require(image.tiffRepresentation)
+        let bitmap = try #require(NSBitmapImageRep(data: data))
+        let hasVisiblePixel = (0 ..< bitmap.pixelsHigh).contains { y in
+            (0 ..< bitmap.pixelsWide).contains { x in
+                (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.01
+            }
+        }
+
+        #expect(!image.isTemplate)
+        #expect(hasVisiblePixel)
+    }
+
+    @Test @MainActor
     func customStatusViewExposesButtonAccessibilityAndPressAction() {
         let view = CompactStatusItemView()
         var didPress = false

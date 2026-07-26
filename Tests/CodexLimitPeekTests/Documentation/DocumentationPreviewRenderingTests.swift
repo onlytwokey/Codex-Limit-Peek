@@ -215,10 +215,35 @@ struct DocumentationPreviewRenderingTests {
                 page: .appearance,
                 scrollTarget: .panelControls
             )
+        let panelColorControls = try await DocumentationPreviewRenderer
+            .renderOverlayPageForTesting(
+                page: .appearance,
+                scrollTarget: .panelColorControls
+            )
+        let panelGeometryControls = try await DocumentationPreviewRenderer
+            .renderOverlayPageForTesting(
+                page: .appearance,
+                scrollTarget: .panelGeometryControls
+            )
+        let panelShadowControls = try await DocumentationPreviewRenderer
+            .renderOverlayPageForTesting(
+                page: .appearance,
+                scrollTarget: .panelShadowControls
+            )
         let statusControls = try await DocumentationPreviewRenderer
             .renderOverlayPageForTesting(
                 page: .statusItem,
                 scrollTarget: .statusItemControls
+            )
+        let statusShadowControls = try await DocumentationPreviewRenderer
+            .renderOverlayPageForTesting(
+                page: .statusItem,
+                scrollTarget: .statusItemShadowControls
+            )
+        let statusGeometryControls = try await DocumentationPreviewRenderer
+            .renderOverlayPageForTesting(
+                page: .statusItem,
+                scrollTarget: .statusItemGeometryControls
             )
         let statusAtDefault = try await DocumentationPreviewRenderer
             .renderOverlayPageForTesting(
@@ -227,42 +252,66 @@ struct DocumentationPreviewRenderingTests {
             )
         let stateColors = try await DocumentationPreviewRenderer
             .renderOverlayPageForTesting(
-                page: .stateColors,
+                page: .statusItem,
                 scrollTarget: .stateColorControls
             )
-        let stateColorsAtDefault = try await DocumentationPreviewRenderer
-            .renderOverlayPageForTesting(
-                page: .stateColors,
-                scrollTarget: nil
-            )
 
-        #expect(themeSelector != panelControls)
-        #expect(statusControls == statusAtDefault)
-        #expect(statusControls != stateColors)
-        #expect(stateColors != stateColorsAtDefault)
-        #expect(
-            try topPixelRows(
-                in: themeSelector,
-                pointHeight: 120
-            ) == topPixelRows(
-                in: panelControls,
-                pointHeight: 120
-            )
+        let panelSections = [
+            panelColorControls,
+            panelControls,
+            panelGeometryControls,
+            panelShadowControls
+        ]
+        #expect(Set(panelSections).count == panelSections.count)
+        for section in panelSections {
+            #expect(dataDiffers(section, themeSelector))
+        }
+        let statusSections = [
+            statusControls,
+            statusShadowControls,
+            statusGeometryControls,
+            stateColors
+        ]
+        #expect(Set(statusSections).count == statusSections.count)
+        for section in statusSections {
+            #expect(dataDiffers(section, statusAtDefault))
+        }
+        let fixedPanelPreviewRows = try topPixelRows(
+            in: themeSelector,
+            pointHeight: 120
         )
-        #expect(
-            try topPixelRows(
-                in: stateColors,
-                pointHeight: 90
-            ) == topPixelRows(
-                in: stateColorsAtDefault,
-                pointHeight: 90
+        for section in panelSections {
+            #expect(
+                try topPixelRows(
+                    in: section,
+                    pointHeight: 120
+                ) == fixedPanelPreviewRows
             )
+        }
+        let fixedStatusPreviewRows = try topPixelRows(
+            in: statusAtDefault,
+            pointHeight: 90
         )
+        for section in statusSections {
+            #expect(
+                try topPixelRows(
+                    in: section,
+                    pointHeight: 90
+                ) == fixedStatusPreviewRows
+            )
+        }
         #expect(
             try DocumentationPreviewRenderer
                 .preferenceArtifactsForTesting()
                 == preferenceArtifactsBefore
         )
+    }
+
+    private func dataDiffers(
+        _ lhs: Data,
+        _ rhs: Data
+    ) -> Bool {
+        lhs != rhs
     }
 
     private func topPixelRows(

@@ -63,6 +63,21 @@ final class CompactStatusItemView: NSView {
         needsDisplay = true
     }
 
+    func renderedStatusImage() -> NSImage? {
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+        guard
+            let representation = bitmapImageRepForCachingDisplay(in: bounds)
+        else {
+            return nil
+        }
+
+        cacheDisplay(in: bounds, to: representation)
+        let image = NSImage(size: bounds.size)
+        image.addRepresentation(representation)
+        image.isTemplate = false
+        return image
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 

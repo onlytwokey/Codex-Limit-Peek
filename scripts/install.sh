@@ -16,6 +16,19 @@ cleanup() {
     /bin/rm -rf "$SCRATCH_DIR"
   fi
 }
+
+stop_running_instances() {
+  pkill -x CodexLimitPeek 2>/dev/null || true
+  for ((attempt = 0; attempt < 50; attempt++)); do
+    if ! pgrep -x CodexLimitPeek >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "CodexLimitPeek did not exit in time" >&2
+  return 1
+}
+
 trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
@@ -36,7 +49,7 @@ codesign --force --deep --sign - "$STAGED_APP"
 codesign --verify --deep --strict "$STAGED_APP"
 
 if [[ "${CODEX_LIMIT_PEEK_SKIP_STOP:-0}" != "1" ]]; then
-  pkill -x CodexLimitPeek 2>/dev/null || true
+  stop_running_instances
 fi
 
 BACKUP_APP="$STAGE_ROOT/previous.app"
@@ -52,7 +65,7 @@ if ! mv "$STAGED_APP" "$DEST_APP"; then
 fi
 
 if [[ "${CODEX_LIMIT_PEEK_SKIP_LAUNCH:-0}" != "1" ]]; then
-  open -n "$DEST_APP"
+  open "$DEST_APP"
 fi
 
 echo "$DEST_APP"

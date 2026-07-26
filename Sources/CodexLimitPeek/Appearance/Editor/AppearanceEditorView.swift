@@ -1,10 +1,55 @@
 import Foundation
 import SwiftUI
 
+enum PanelEditorSectionDestination:
+    String,
+    CaseIterable,
+    Identifiable,
+    Sendable
+{
+    case color
+    case text
+    case geometry
+    case shadow
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .color:
+            "颜色"
+        case .text:
+            "文字"
+        case .geometry:
+            "几何"
+        case .shadow:
+            "阴影"
+        }
+    }
+
+    var scrollTarget: AppearanceEditorInitialScrollTarget {
+        switch self {
+        case .color:
+            .panelColorControls
+        case .text:
+            .panelControls
+        case .geometry:
+            .panelGeometryControls
+        case .shadow:
+            .panelShadowControls
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        "panel-section-navigation-\(rawValue)"
+    }
+}
+
 struct AppearanceEditorView: View {
     @ObservedObject var store: AppearanceStore
     let onBack: (() -> Void)?
     let onOpenCustomColor: (AppearanceColorToken) -> Void
+    let onOpenStatusDisplay: () -> Void
 
     @Environment(\.appearanceEditorInitialScrollTarget)
     private var initialScrollTarget
@@ -17,11 +62,13 @@ struct AppearanceEditorView: View {
         store: AppearanceStore,
         onBack: (() -> Void)? = nil,
         onOpenCustomColor:
-            @escaping (AppearanceColorToken) -> Void
+            @escaping (AppearanceColorToken) -> Void,
+        onOpenStatusDisplay: @escaping () -> Void = {}
     ) {
         self.store = store
         self.onBack = onBack
         self.onOpenCustomColor = onOpenCustomColor
+        self.onOpenStatusDisplay = onOpenStatusDisplay
     }
 
     private var resolvedAppearance: ResolvedPanelAppearance {
@@ -37,14 +84,21 @@ struct AppearanceEditorView: View {
         VStack(spacing: 0) {
             header
 
-            AppearanceLivePreview(profile: store.currentProfile)
+            AppearanceLivePreview(
+                profile: store.currentProfile,
+                onOpenStatusDisplay: onOpenStatusDisplay
+            )
                 .padding(12)
                 .brutalSectionDivider()
                 .fixedSize(horizontal: false, vertical: true)
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
+                    LazyVStack(
+                        alignment: .leading,
+                        spacing: 0,
+                        pinnedViews: [.sectionHeaders]
+                    ) {
                         themeSelector
                             .padding(12)
                             .brutalSectionDivider()
@@ -53,69 +107,92 @@ struct AppearanceEditorView: View {
                                     .themeSelector
                             )
 
-                        AppearanceEditorSection(
-                            appearance: resolvedAppearance,
-                            title: "基础色板",
-                            subtitle: "面板配色；状态栏可单独覆盖文字与阴影"
-                        ) {
-                            VStack(spacing: 10) {
-                                colorRow(
-                                    title: "背景",
-                                    token: .background
-                                )
-                                colorRow(
-                                    title: "表面",
-                                    token: .surface
-                                )
-                                colorRow(
-                                    title: "文字与描边",
-                                    token: .textAndOutline
-                                )
-                                colorRow(
-                                    title: "操作控件",
-                                    token: .actionAccent
-                                )
+                        Section {
+                            AppearanceEditorSection(
+                                appearance: resolvedAppearance,
+                                title: "基础色板",
+                                subtitle: "面板配色；状态栏可单独覆盖文字与阴影"
+                            ) {
+                                VStack(spacing: 10) {
+                                    colorRow(
+                                        title: "背景",
+                                        token: .background
+                                    )
+                                    colorRow(
+                                        title: "表面",
+                                        token: .surface
+                                    )
+                                    colorRow(
+                                        title: "文字与描边",
+                                        token: .textAndOutline
+                                    )
+                                    colorRow(
+                                        title: "操作控件",
+                                        token: .actionAccent
+                                    )
+                                }
                             }
-                        }
-
-                        if resolvedAppearance.hasContrastSubstitution {
-                            Label(
-                                "当前文字对比度不足，实际显示会自动改用黑色或白色。",
-                                systemImage: "exclamationmark.triangle.fill"
-                            )
-                            .appearanceEditorFont(
-                                size: 11,
-                                weight: .medium
-                            )
-                            .foregroundStyle(Color.orange)
-                            .padding(10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                BrutalEditorStyle.yellow.opacity(0.28)
-                            )
-                            .brutalSectionDivider()
-                        }
-
-                        geometrySection
                             .id(
                                 AppearanceEditorInitialScrollTarget
-                                    .panelControls
+                                    .panelColorControls
                             )
-                        resetSection
 
-                        if
-                            addsDocumentationScrollSpace,
-                            initialScrollTarget == .panelControls
-                        {
-                            Color.clear
-                                .frame(
-                                    height:
-                                        AppearanceEditorDocumentationMetrics
-                                            .trailingScrollSpace(
-                                                for: initialScrollTarget
-                                            )
+                            if resolvedAppearance.hasContrastSubstitution {
+                                Label(
+                                    "当前文字对比度不足，实际显示会自动改用黑色或白色。",
+                                    systemImage: "exclamationmark.triangle.fill"
                                 )
-                                .accessibilityHidden(true)
+                                .appearanceEditorFont(
+                                    size: 11,
+                                    weight: .medium
+                                )
+                                .foregroundStyle(Color.orange)
+                                .padding(10)
+                                .frame(
+                                    maxWidth: .infinity,
+                                    alignment: .leading
+                                )
+                                .background(
+                                    BrutalEditorStyle.yellow.opacity(0.28)
+                                )
+                                .brutalSectionDivider()
+                            }
+
+                            panelTextSection
+                                .id(
+                                    AppearanceEditorInitialScrollTarget
+                                        .panelControls
+                                )
+                            panelGeometrySection
+                                .id(
+                                    AppearanceEditorInitialScrollTarget
+                                        .panelGeometryControls
+                                )
+                            panelShadowSection
+                                .id(
+                                    AppearanceEditorInitialScrollTarget
+                                        .panelShadowControls
+                                )
+                            resetSection
+
+                            if
+                                addsDocumentationScrollSpace,
+                                isPanelControlsScrollTarget(
+                                    initialScrollTarget
+                                )
+                            {
+                                Color.clear
+                                    .frame(
+                                        height:
+                                            AppearanceEditorDocumentationMetrics
+                                                .trailingScrollSpace(
+                                                    for: initialScrollTarget
+                                                )
+                                    )
+                                    .accessibilityHidden(true)
+                            }
+                        } header: {
+                            sectionNavigation(proxy: proxy)
                         }
                     }
                 }
@@ -124,8 +201,7 @@ struct AppearanceEditorView: View {
                 .task(id: initialScrollTarget) {
                     guard
                         let target = initialScrollTarget,
-                        target == .themeSelector
-                            || target == .panelControls
+                        isPanelEditorScrollTarget(target)
                     else {
                         return
                     }
@@ -240,107 +316,207 @@ struct AppearanceEditorView: View {
         }
     }
 
-    private var geometrySection: some View {
-        VStack(spacing: 0) {
-            AppearanceEditorSection(
-                appearance: resolvedAppearance,
-                title: "面板字形与几何",
-                subtitle: "仅影响展开面板"
-            ) {
-                VStack(spacing: 11) {
-                    BrutalSlider(
-                        title: "面板字体大小",
-                        value: geometryBinding(\.fontScale),
-                        range: 0.8...1.25,
-                        step: 0.01,
-                        valueText: { "\(Int(($0 * 100).rounded()))%" },
-                        tint: resolvedAppearance.primaryStateColor.swiftUIColor,
-                        thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
-                        onEditingChanged: { store.sliderEditingChanged($0) }
-                    )
-                    BrutalSlider(
-                        title: "设置页字体大小",
-                        value: Binding(
-                            get: { store.editorFontScale },
-                            set: { store.setEditorFontScale($0) }
-                        ),
-                        range: AppearanceEditorTypography.allowedScale,
-                        step: AppearanceEditorTypography.scaleStep,
-                        valueText: { "\(Int(($0 * 100).rounded()))%" },
-                        tint: resolvedAppearance.primaryStateColor.swiftUIColor,
-                        thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
-                        onEditingChanged: { store.sliderEditingChanged($0) }
-                    )
-                    .accessibilityIdentifier("appearance-editor-font-scale")
-
-                    Text("全局 · 仅影响设置页面")
+    private func sectionNavigation(
+        proxy: ScrollViewProxy
+    ) -> some View {
+        HStack(spacing: 6) {
+            ForEach(PanelEditorSectionDestination.allCases) {
+                destination in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(
+                            destination.scrollTarget,
+                            anchor: .top
+                        )
+                    }
+                } label: {
+                    Text(destination.title)
                         .appearanceEditorFont(
                             size: 8,
-                            weight: .bold,
+                            weight: .black,
                             design: .monospaced
                         )
-                        .opacity(0.58)
-
-                    BrutalSlider(
-                        title: "描边",
-                        value: geometryBinding(\.outlineWidth),
-                        range: 0...4,
-                        step: 0.25,
-                        valueText: { Self.points($0, fractionDigits: 2) },
-                        tint: resolvedAppearance.primaryStateColor.swiftUIColor,
-                        thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
-                        onEditingChanged: { store.sliderEditingChanged($0) }
-                    )
-                    BrutalSlider(
-                        title: "圆角",
-                        value: geometryBinding(\.cornerRadius),
-                        range: 0...28,
-                        step: 1,
-                        valueText: { Self.points($0) },
-                        tint: resolvedAppearance.primaryStateColor.swiftUIColor,
-                        thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
-                        onEditingChanged: { store.sliderEditingChanged($0) }
-                    )
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .frame(maxWidth: .infinity)
+                        .appearanceEditorMinHeight(22)
+                        .background(BrutalEditorStyle.paper)
+                        .overlay {
+                            Rectangle()
+                                .strokeBorder(
+                                    BrutalEditorStyle.ink,
+                                    lineWidth: 1
+                                )
+                        }
                 }
+                .buttonStyle(.plain)
+                .help("跳转到\(destination.title)设置")
+                .accessibilityLabel(
+                    "跳转到\(destination.title)设置"
+                )
+                .accessibilityIdentifier(
+                    destination.accessibilityIdentifier
+                )
             }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(BrutalEditorStyle.paleTeal)
+        .brutalSectionDivider()
+        .zIndex(2)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("主面板设置区域快速导航")
+    }
 
-            AppearanceEditorSection(
-                appearance: resolvedAppearance,
-                title: "面板阴影与材质",
-                subtitle: nil
-            ) {
-                VStack(spacing: 11) {
-                    BrutalSlider(
-                        title: "阴影深度",
-                        value: geometryBinding(\.shadowDepth),
-                        range: 0...10,
-                        step: 1,
-                        valueText: { Self.points($0) },
-                        tint: resolvedAppearance.primaryStateColor.swiftUIColor,
-                        thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
-                        onEditingChanged: { store.sliderEditingChanged($0) }
+    private func isPanelEditorScrollTarget(
+        _ target: AppearanceEditorInitialScrollTarget?
+    ) -> Bool {
+        switch target {
+        case .themeSelector,
+             .panelControls,
+             .panelColorControls,
+             .panelGeometryControls,
+             .panelShadowControls:
+            true
+        case .statusItemControls,
+             .statusItemShadowControls,
+             .statusItemGeometryControls,
+             .stateColorControls,
+             nil:
+            false
+        }
+    }
+
+    private func isPanelControlsScrollTarget(
+        _ target: AppearanceEditorInitialScrollTarget?
+    ) -> Bool {
+        switch target {
+        case .panelControls,
+             .panelColorControls,
+             .panelGeometryControls,
+             .panelShadowControls:
+            true
+        case .themeSelector,
+             .statusItemControls,
+             .statusItemShadowControls,
+             .statusItemGeometryControls,
+             .stateColorControls,
+             nil:
+            false
+        }
+    }
+
+    private var panelTextSection: some View {
+        AppearanceEditorSection(
+            appearance: resolvedAppearance,
+            title: "面板文字",
+            subtitle: "面板字号与设置页字号"
+        ) {
+            VStack(spacing: 11) {
+                BrutalSlider(
+                    title: "面板字体大小",
+                    value: geometryBinding(\.fontScale),
+                    range: 0.8...1.25,
+                    step: 0.01,
+                    valueText: { "\(Int(($0 * 100).rounded()))%" },
+                    tint: resolvedAppearance.primaryStateColor.swiftUIColor,
+                    thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
+                    onEditingChanged: { store.sliderEditingChanged($0) }
+                )
+                BrutalSlider(
+                    title: "设置页字体大小",
+                    value: Binding(
+                        get: { store.editorFontScale },
+                        set: { store.setEditorFontScale($0) }
+                    ),
+                    range: AppearanceEditorTypography.allowedScale,
+                    step: AppearanceEditorTypography.scaleStep,
+                    valueText: { "\(Int(($0 * 100).rounded()))%" },
+                    tint: resolvedAppearance.primaryStateColor.swiftUIColor,
+                    thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
+                    onEditingChanged: { store.sliderEditingChanged($0) }
+                )
+                .accessibilityIdentifier("appearance-editor-font-scale")
+
+                Text("全局 · 仅影响设置页面")
+                    .appearanceEditorFont(
+                        size: 8,
+                        weight: .bold,
+                        design: .monospaced
                     )
-                    BrutalSlider(
-                        title: "阴影模糊",
-                        value: geometryBinding(\.shadowBlur),
-                        range: 0...20,
-                        step: 1,
-                        valueText: { Self.points($0) },
-                        tint: resolvedAppearance.primaryStateColor.swiftUIColor,
-                        thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
-                        onEditingChanged: { store.sliderEditingChanged($0) }
-                    )
-                    BrutalSlider(
-                        title: "表面不透明度",
-                        value: geometryBinding(\.surfaceOpacity),
-                        range: 0.55...1,
-                        step: 0.01,
-                        valueText: { "\(Int(($0 * 100).rounded()))%" },
-                        tint: resolvedAppearance.primaryStateColor.swiftUIColor,
-                        thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
-                        onEditingChanged: { store.sliderEditingChanged($0) }
-                    )
-                }
+                    .opacity(0.58)
+            }
+        }
+    }
+
+    private var panelGeometrySection: some View {
+        AppearanceEditorSection(
+            appearance: resolvedAppearance,
+            title: "面板几何",
+            subtitle: "描边与圆角"
+        ) {
+            VStack(spacing: 11) {
+                BrutalSlider(
+                    title: "描边",
+                    value: geometryBinding(\.outlineWidth),
+                    range: 0...4,
+                    step: 0.25,
+                    valueText: { Self.points($0, fractionDigits: 2) },
+                    tint: resolvedAppearance.primaryStateColor.swiftUIColor,
+                    thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
+                    onEditingChanged: { store.sliderEditingChanged($0) }
+                )
+                BrutalSlider(
+                    title: "圆角",
+                    value: geometryBinding(\.cornerRadius),
+                    range: 0...28,
+                    step: 1,
+                    valueText: { Self.points($0) },
+                    tint: resolvedAppearance.primaryStateColor.swiftUIColor,
+                    thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
+                    onEditingChanged: { store.sliderEditingChanged($0) }
+                )
+            }
+        }
+    }
+
+    private var panelShadowSection: some View {
+        AppearanceEditorSection(
+            appearance: resolvedAppearance,
+            title: "面板阴影与材质",
+            subtitle: nil
+        ) {
+            VStack(spacing: 11) {
+                BrutalSlider(
+                    title: "阴影深度",
+                    value: geometryBinding(\.shadowDepth),
+                    range: 0...10,
+                    step: 1,
+                    valueText: { Self.points($0) },
+                    tint: resolvedAppearance.primaryStateColor.swiftUIColor,
+                    thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
+                    onEditingChanged: { store.sliderEditingChanged($0) }
+                )
+                BrutalSlider(
+                    title: "阴影模糊",
+                    value: geometryBinding(\.shadowBlur),
+                    range: 0...20,
+                    step: 1,
+                    valueText: { Self.points($0) },
+                    tint: resolvedAppearance.primaryStateColor.swiftUIColor,
+                    thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
+                    onEditingChanged: { store.sliderEditingChanged($0) }
+                )
+                BrutalSlider(
+                    title: "表面不透明度",
+                    value: geometryBinding(\.surfaceOpacity),
+                    range: 0.55...1,
+                    step: 0.01,
+                    valueText: { "\(Int(($0 * 100).rounded()))%" },
+                    tint: resolvedAppearance.primaryStateColor.swiftUIColor,
+                    thumb: resolvedAppearance.actionAccentColor.swiftUIColor,
+                    onEditingChanged: { store.sliderEditingChanged($0) }
+                )
             }
         }
     }
@@ -551,6 +727,8 @@ struct AppearanceEditorView: View {
 
 private struct AppearanceLivePreview: View {
     let profile: AppearanceProfile
+    let onOpenStatusDisplay: () -> Void
+    @State private var isStatusHovered = false
 
     private var panelAppearance: ResolvedPanelAppearance {
         AppearanceResolver.panel(
@@ -584,8 +762,45 @@ private struct AppearanceLivePreview: View {
 
                 Spacer(minLength: 8)
 
-                ThemeStatusChromePreview(
-                    appearance: statusAppearance
+                Button(action: onOpenStatusDisplay) {
+                    HStack(spacing: 4) {
+                        ThemeStatusChromePreview(
+                            appearance: statusAppearance
+                        )
+
+                        Image(systemName: "chevron.right")
+                            .appearanceEditorFont(
+                                size: 8,
+                                weight: .black
+                            )
+                    }
+                    .padding(3)
+                    .background(
+                        isStatusHovered
+                            ? panelAppearance.actionAccentColor
+                                .swiftUIColor.opacity(0.18)
+                            : Color.clear
+                    )
+                    .overlay {
+                        Rectangle()
+                            .strokeBorder(
+                                panelAppearance.outlineColor.swiftUIColor,
+                                lineWidth: 1.5
+                            )
+                            .opacity(isStatusHovered ? 1 : 0)
+                    }
+                    .offset(y: isStatusHovered ? -1 : 0)
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.1)) {
+                        isStatusHovered = hovering
+                    }
+                }
+                .help("打开状态栏设置")
+                .accessibilityLabel("打开状态栏设置")
+                .accessibilityIdentifier(
+                    "appearance-status-display-preview-button"
                 )
             }
 
@@ -594,7 +809,7 @@ private struct AppearanceLivePreview: View {
                 targetWidth: 296
             )
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("appearance-live-preview")
         .accessibilityLabel("当前主题的面板与菜单栏实时预览")
     }

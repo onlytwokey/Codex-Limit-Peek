@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 VERSION="${CODEX_LIMIT_PEEK_VERSION:-0.1.0}"
 BUILD_NUMBER="${CODEX_LIMIT_PEEK_BUILD_NUMBER:-1}"
 BUILD_CONFIGURATION="${CODEX_LIMIT_PEEK_BUILD_CONFIGURATION:-release}"
+BUNDLE_IDENTIFIER="io.github.onlytwokey.CodexLimitPeek.MenuBar"
 
 case "$BUILD_CONFIGURATION" in
   debug|release) ;;
@@ -64,7 +65,7 @@ chmod +x "$APP_DIR/Contents/MacOS/CodexLimitPeek"
 /usr/libexec/PlistBuddy -c "Clear dict" "$APP_DIR/Contents/Info.plist" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :CFBundleName string Codex Limit Peek" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Codex Limit Peek" "$APP_DIR/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string io.github.onlytwokey.CodexLimitPeek" "$APP_DIR/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string $BUNDLE_IDENTIFIER" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string CodexLimitPeek" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$APP_DIR/Contents/Info.plist"
@@ -72,5 +73,8 @@ chmod +x "$APP_DIR/Contents/MacOS/CodexLimitPeek"
 /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 14.0" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :NSUserNotificationUsageDescription string Codex Limit Peek uses notifications for low quota alerts." "$APP_DIR/Contents/Info.plist"
+
+codesign --force --deep --sign - "$APP_DIR"
+codesign --verify --deep --strict "$APP_DIR"
 
 echo "$APP_DIR"

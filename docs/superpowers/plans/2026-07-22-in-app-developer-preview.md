@@ -19,7 +19,7 @@
 - Test: `Tests/CodexLimitPeekTests/Application/AppDelegateLifecycleTests.swift`
 
 - [ ] Add `.define("DEVELOPER_TOOLS", .when(configuration: .debug))` to the executable target.
-- [ ] Replace the `production|demo` packaging branch with a validated `release|debug` build configuration while always emitting `build/Codex Limit Peek.app`, `io.github.onlytwokey.CodexLimitPeek`, and `CodexLimitPeek`.
+- [ ] Replace the `production|demo` packaging branch with a validated `release|debug` build configuration while always emitting `build/Codex Limit Peek.app`, `io.github.onlytwokey.CodexLimitPeek.MenuBar`, and `CodexLimitPeek`.
 - [ ] Delete the separate Demo launcher.
 - [ ] Run `bash -n scripts/build-app.sh` and verify an invalid configuration exits with code 2 before invoking Swift.
 

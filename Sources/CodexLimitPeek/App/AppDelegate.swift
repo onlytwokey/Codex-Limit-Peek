@@ -34,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 #endif
     }()
     private var statusItem: NSStatusItem?
-    private var statusView: CompactStatusItemView?
+    private var statusRenderer: CompactStatusItemView?
     private var panelWindow: NSPanel?
     private var panelShadowWindow: NSPanel?
     private var outsideClickMonitor: Any?
@@ -77,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 #endif
 
+        AppDefaultsIdentityMigration.migrateIfNeeded()
         NSApp.setActivationPolicy(.accessory)
 
 #if DEVELOPER_TOOLS
@@ -94,7 +95,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 #endif
 
         productionRuntimeStarted = true
-        configureStatusItem()
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard
+                let self,
+                self.productionRuntimeStarted
+            else {
+                return
+            }
+            self.configureStatusItem()
+        }
         configureWakeRefreshObservers()
         quotaStore.start()
 
@@ -122,15 +132,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func configureStatusItem() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem = item
+        guard statusItem == nil else { return }
 
-        let view = CompactStatusItemView()
-        view.onClick = { [weak self] in
-            self?.togglePanel()
+        let renderer = CompactStatusItemView()
+        statusRenderer = renderer
+        updateStatusItem(
+            with: quotaStore.snapshot,
+            health: quotaStore.refreshHealth
+        )
+
+        let initialLength = max(
+            renderer.frame.width,
+            NSStatusItem.squareLength
+        )
+        let item = NSStatusBar.system.statusItem(withLength: initialLength)
+        statusItem = item
+        guard let button = item.button else {
+            NSStatusBar.system.removeStatusItem(item)
+            statusItem = nil
+            statusRenderer = nil
+            return
         }
-        item.view = view
-        statusView = view
+        button.title = ""
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleNone
+        button.isBordered = false
+        button.target = self
+        button.action = #selector(performStatusItemAction(_:))
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
         updateStatusItem(with: quotaStore.snapshot, health: quotaStore.refreshHealth)
     }
@@ -175,6 +204,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func closeDeveloperPreviewForTesting() {
         developerPreviewCoordinator?.tearDown()
         developerPreviewCoordinator = nil
+    }
+
+    func configureStatusItemForTesting() {
+        configureStatusItem()
+    }
+
+    var statusItemUsesButtonHostForTesting: Bool {
+        guard
+            let statusItem,
+            let statusRenderer,
+            let button = statusItem.button
+        else {
+            return false
+        }
+        return statusRenderer.superview == nil
+            && button.target === self
+            && button.action == #selector(performStatusItemAction(_:))
+            && button.image?.isTemplate == false
+            && (button.image?.size.width ?? 0) > 0
+            && (button.image?.size.height ?? 0) > 0
+    }
+
+    var statusItemLengthForTesting: CGFloat? {
+        statusItem?.length
+    }
+
+    var statusItemIdentityForTesting: ObjectIdentifier? {
+        statusItem.map(ObjectIdentifier.init)
+    }
+
+    var statusItemIsVisibleForTesting: Bool {
+        statusItem?.isVisible == true
+    }
+
+    var statusItemButtonHasWindowForTesting: Bool {
+        statusItem?.button?.window != nil
+    }
+
+    var statusItemButtonHasImageForTesting: Bool {
+        statusItem?.button?.image != nil
+    }
+
+    func removeStatusItemForTesting() {
+        guard let statusItem else { return }
+        NSStatusBar.system.removeStatusItem(statusItem)
+        self.statusItem = nil
+        statusRenderer = nil
     }
 #endif
 
@@ -318,24 +394,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if health != .live, let failure = quotaStore.lastFailureCategory {
             tooltip += "\n原因：\(failure.displayText)"
         }
-        statusView?.update(
+        statusRenderer?.update(
             title: title,
             weeklyTitle: weeklyTitle,
             appearance: appearance,
             showsFailurePattern: isFailure,
             tooltip: tooltip
         )
-        statusItem?.length = statusView?.frame.width ?? NSStatusItem.variableLength
+        statusItem?.length = statusRenderer?.frame.width
+            ?? NSStatusItem.variableLength
+        if
+            let statusRenderer,
+            let button = statusItem?.button
+        {
+            button.image = statusRenderer.renderedStatusImage()
+            button.toolTip = tooltip
+            button.setAccessibilityLabel("Codex Limit Peek")
+            button.setAccessibilityValue(
+                [title, weeklyTitle]
+                    .compactMap { $0 }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " | ")
+            )
+            button.setAccessibilityHelp(tooltip)
+        }
+    }
+
+    @objc private func performStatusItemAction(_ sender: NSStatusBarButton) {
+        togglePanel()
     }
 
     private func togglePanel() {
-        guard let statusView else { return }
+        guard let statusButton = statusItem?.button else { return }
         let panelWindow = ensurePanelWindow()
 
         if panelWindow.isVisible {
             closePanel()
         } else {
-            positionPanel(relativeTo: statusView)
+            positionPanel(relativeTo: statusButton)
             if
                 let panelShadowWindow,
                 panelShadowWindow.parent !== panelWindow
@@ -364,11 +460,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard
                 let self,
                 self.panelWindow?.isVisible == true,
-                let statusView = self.statusView
+                let statusButton = self.statusItem?.button
             else {
                 return
             }
-            self.positionPanel(relativeTo: statusView)
+            self.positionPanel(relativeTo: statusButton)
         }
     }
 

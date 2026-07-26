@@ -1,18 +1,102 @@
 import Foundation
 import SwiftUI
 
+enum StatusItemEditorSectionDestination:
+    String,
+    CaseIterable,
+    Identifiable,
+    Sendable
+{
+    case text
+    case shadow
+    case geometry
+    case stateColors
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .text:
+            "文字"
+        case .shadow:
+            "阴影"
+        case .geometry:
+            "几何"
+        case .stateColors:
+            "状态颜色"
+        }
+    }
+
+    var scrollTarget: AppearanceEditorInitialScrollTarget {
+        switch self {
+        case .text:
+            .statusItemControls
+        case .shadow:
+            .statusItemShadowControls
+        case .geometry:
+            .statusItemGeometryControls
+        case .stateColors:
+            .stateColorControls
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        let suffix = switch self {
+        case .text, .shadow, .geometry:
+            rawValue
+        case .stateColors:
+            "state-colors"
+        }
+        return "status-item-section-navigation-\(suffix)"
+    }
+}
+
+enum StatusDisplayPreviewInteraction {
+    static func guidanceText(
+        hovered: StateColorsEditorPreviewState?
+    ) -> String {
+        hovered == nil
+            ? "悬停状态查看效果"
+            : "点击固定状态显示"
+    }
+
+    static func previewState(
+        selected: StateColorsEditorPreviewState,
+        hovered: StateColorsEditorPreviewState?
+    ) -> StateColorsEditorPreviewState {
+        hovered ?? selected
+    }
+
+    static func hoveredState(
+        current: StateColorsEditorPreviewState?,
+        target: StateColorsEditorPreviewState,
+        isHovering: Bool
+    ) -> StateColorsEditorPreviewState? {
+        if isHovering {
+            return target
+        }
+        return current == target ? nil : current
+    }
+}
+
 struct StatusItemEditorView: View {
     @ObservedObject var store: AppearanceStore
     let onBack: () -> Void
-    let onOpenCustomColor: (StatusItemColorToken) -> Void
+    let onReturnToPanel: () -> Void
+    let onOpenCustomColor: (AppearanceColorEditTarget) -> Void
+    @State private var previewState:
+        StateColorsEditorPreviewState = .normal
 
     init(
         store: AppearanceStore,
         onBack: @escaping () -> Void,
-        onOpenCustomColor: @escaping (StatusItemColorToken) -> Void = { _ in }
+        onReturnToPanel: @escaping () -> Void = {},
+        onOpenCustomColor:
+            @escaping (AppearanceColorEditTarget) -> Void = { _ in }
     ) {
         self.store = store
         self.onBack = onBack
+        self.onReturnToPanel = onReturnToPanel
         self.onOpenCustomColor = onOpenCustomColor
     }
 
@@ -65,74 +149,86 @@ struct StatusItemEditorView: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(
+                    LazyVStack(
                         alignment: .leading,
-                        spacing: 0
+                        spacing: 0,
+                        pinnedViews: [.sectionHeaders]
                     ) {
-                        textColorSection
-                        .id(
-                            AppearanceEditorInitialScrollTarget
-                                .statusItemControls
-                        )
+                        themeSelector
 
-                        if !lowContrastLabels.isEmpty {
-                            Label(
-                                "\(lowContrastLabels.joined(separator: "、"))在部分额度状态或菜单栏背景下对比度低于 4.5:1；仍会按所选颜色显示。",
-                                systemImage: "exclamationmark.triangle.fill"
-                            )
-                            .appearanceEditorFont(
-                                size: 9,
-                                weight: .bold,
-                                design: .monospaced
-                            )
-                            .foregroundStyle(Color.orange)
-                            .padding(10)
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .leading
-                            )
-                            .background(
-                                BrutalEditorStyle.yellow.opacity(0.28)
-                            )
-                            .brutalSectionDivider()
-                            .accessibilityIdentifier(
-                                "status-item-low-contrast-warning"
-                            )
-                        }
-
-                        shadowSection
-                        geometrySection
-
-                        Text(
-                            "最终尺寸会根据系统菜单栏高度自动适配；水平阴影不会因高度被压缩。"
-                        )
-                        .appearanceEditorFont(
-                            size: 8,
-                            weight: .bold,
-                            design: .monospaced
-                        )
-                        .padding(12)
-                        .frame(
-                            maxWidth: .infinity,
-                            alignment: .leading
-                        )
-                        .background(
-                            BrutalEditorStyle.paleTeal
-                        )
-
-                        if
-                            addsDocumentationScrollSpace,
-                            initialScrollTarget == .statusItemControls
-                        {
-                            Color.clear
-                                .frame(
-                                    height:
-                                        AppearanceEditorDocumentationMetrics
-                                            .trailingScrollSpace(
-                                                for: initialScrollTarget
-                                            )
+                        Section {
+                            textColorSection
+                                .id(
+                                    AppearanceEditorInitialScrollTarget
+                                        .statusItemControls
                                 )
-                                .accessibilityHidden(true)
+
+                            if !lowContrastLabels.isEmpty {
+                                Label(
+                                    "\(lowContrastLabels.joined(separator: "、"))在部分额度状态或菜单栏背景下对比度低于 4.5:1；仍会按所选颜色显示。",
+                                    systemImage: "exclamationmark.triangle.fill"
+                                )
+                                .appearanceEditorFont(
+                                    size: 9,
+                                    weight: .bold,
+                                    design: .monospaced
+                                )
+                                .foregroundStyle(Color.orange)
+                                .padding(10)
+                                .frame(
+                                    maxWidth: .infinity,
+                                    alignment: .leading
+                                )
+                                .background(
+                                    BrutalEditorStyle.yellow.opacity(0.28)
+                                )
+                                .brutalSectionDivider()
+                                .accessibilityIdentifier(
+                                    "status-item-low-contrast-warning"
+                                )
+                            }
+
+                            shadowSection
+                                .id(
+                                    AppearanceEditorInitialScrollTarget
+                                        .statusItemShadowControls
+                                )
+                            geometrySection
+                                .id(
+                                    AppearanceEditorInitialScrollTarget
+                                        .statusItemGeometryControls
+                                )
+
+                            StateColorsEditorControls(
+                                store: store,
+                                previewState: $previewState,
+                                onOpenCustomColor: { token in
+                                    onOpenCustomColor(.palette(token))
+                                }
+                            )
+                            .id(
+                                AppearanceEditorInitialScrollTarget
+                                    .stateColorControls
+                            )
+
+                            if
+                                addsDocumentationScrollSpace,
+                                isStatusEditorScrollTarget(
+                                    initialScrollTarget
+                                )
+                            {
+                                Color.clear
+                                    .frame(
+                                        height:
+                                            AppearanceEditorDocumentationMetrics
+                                                .trailingScrollSpace(
+                                                    for: initialScrollTarget
+                                                )
+                                    )
+                                    .accessibilityHidden(true)
+                            }
+                        } header: {
+                            sectionNavigation(proxy: proxy)
                         }
                     }
                 }
@@ -145,13 +241,15 @@ struct StatusItemEditorView: View {
                     axes: .vertical
                 )
                 .task(id: initialScrollTarget) {
-                    guard initialScrollTarget == .statusItemControls else {
+                    guard
+                        let initialScrollTarget,
+                        isStatusEditorScrollTarget(initialScrollTarget)
+                    else {
                         return
                     }
                     await Task.yield()
                     proxy.scrollTo(
-                        AppearanceEditorInitialScrollTarget
-                            .statusItemControls,
+                        initialScrollTarget,
                         anchor: .top
                     )
                 }
@@ -170,30 +268,120 @@ struct StatusItemEditorView: View {
     }
 
     private var livePreview: some View {
-        VStack(
-            alignment: .leading,
-            spacing: 9
-        ) {
-            Text("实时预览")
-                .appearanceEditorFont(
-                    size: 9,
-                    weight: .black,
-                    design: .monospaced
-                )
-            HStack {
-                Spacer()
-                ThemeStatusChromePreview(
-                    appearance: statusAppearance
-                )
-                Spacer()
-            }
-        }
+        StatusDisplayLivePreview(
+            profile: store.currentProfile,
+            selectedState: $previewState
+        )
         .padding(12)
         .brutalSectionDivider()
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier(
             "status-item-live-preview"
         )
+    }
+
+    private var themeSelector: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("主题")
+                .appearanceEditorFont(
+                    size: 9,
+                    weight: .black,
+                    design: .monospaced
+                )
+                .tracking(0.8)
+
+            HStack(spacing: 8) {
+                ForEach(
+                    AppearanceThemeID.allCases,
+                    id: \.self
+                ) { theme in
+                    ThemeChoiceButton(
+                        theme: theme,
+                        profile: store.profile(for: theme),
+                        isSelected: store.selectedTheme == theme
+                    ) {
+                        withAnimation(.easeOut(duration: 0.14)) {
+                            store.select(theme)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .brutalSectionDivider()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("选择要编辑状态显示的主题")
+    }
+
+    private func sectionNavigation(
+        proxy: ScrollViewProxy
+    ) -> some View {
+        HStack(spacing: 6) {
+            ForEach(StatusItemEditorSectionDestination.allCases) {
+                destination in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(
+                            destination.scrollTarget,
+                            anchor: .top
+                        )
+                    }
+                } label: {
+                    Text(destination.title)
+                        .appearanceEditorFont(
+                            size: 8,
+                            weight: .black,
+                            design: .monospaced
+                        )
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .frame(maxWidth: .infinity)
+                        .appearanceEditorMinHeight(22)
+                        .background(BrutalEditorStyle.paper)
+                        .overlay {
+                            Rectangle()
+                                .strokeBorder(
+                                    BrutalEditorStyle.ink,
+                                    lineWidth: 1
+                                )
+                        }
+                }
+                .buttonStyle(.plain)
+                .help("跳转到\(destination.title)设置")
+                .accessibilityLabel(
+                    "跳转到\(destination.title)设置"
+                )
+                .accessibilityIdentifier(
+                    destination.accessibilityIdentifier
+                )
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(BrutalEditorStyle.paleTeal)
+        .brutalSectionDivider()
+        .zIndex(2)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("设置区域快速导航")
+    }
+
+    private func isStatusEditorScrollTarget(
+        _ target: AppearanceEditorInitialScrollTarget?
+    ) -> Bool {
+        switch target {
+        case .statusItemControls,
+             .statusItemShadowControls,
+             .statusItemGeometryControls,
+             .stateColorControls:
+            true
+        case .themeSelector,
+             .panelControls,
+             .panelColorControls,
+             .panelGeometryControls,
+             .panelShadowControls,
+             nil:
+            false
+        }
     }
 
     private var textColorSection: some View {
@@ -263,6 +451,11 @@ struct StatusItemEditorView: View {
                 ForEach(StatusItemEditorField.geometryFields) { field in
                     statusSlider(field)
                 }
+
+                AppearanceEditorInlineNote(
+                    text: "最终尺寸会根据系统菜单栏高度自动适配；水平阴影不会因高度被压缩。"
+                )
+                .padding(.top, 2)
             }
         }
     }
@@ -292,7 +485,7 @@ struct StatusItemEditorView: View {
                 )
             },
             onOpenCustomColor: {
-                onOpenCustomColor(token)
+                onOpenCustomColor(.statusItem(token))
             },
             onResetToInherited: {
                 store.setStatusColor(nil, for: token)
@@ -326,25 +519,48 @@ struct StatusItemEditorView: View {
         let showsSaved =
             store.saveFeedbackState == .saved
         return HStack(spacing: 8) {
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .appearanceEditorFont(
-                        size: 12,
-                        weight: .bold
-                    )
-                    .frame(width: 24, height: 24)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("返回外观")
-            .accessibilityLabel("返回外观")
+            HStack(spacing: 0) {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .appearanceEditorFont(
+                            size: 12,
+                            weight: .bold
+                        )
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("返回主面板设置")
+                .accessibilityLabel("返回主面板设置")
+                .accessibilityIdentifier(
+                    "status-item-back-to-panel-settings"
+                )
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text("状态栏显示层")
+                Button(action: onReturnToPanel) {
+                    Image(systemName: "macwindow")
+                        .appearanceEditorFont(
+                            size: 10,
+                            weight: .bold
+                        )
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("返回面板视图")
+                .accessibilityLabel("返回面板视图")
+                .accessibilityIdentifier(
+                    "status-item-return-to-panel-view"
+                )
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("状态栏设置")
                     .appearanceEditorFont(
                         size: 14,
                         weight: .bold
                     )
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
                 Text(store.selectedTheme.displayName)
                     .appearanceEditorFont(
                         size: 9,
@@ -460,5 +676,162 @@ struct StatusItemEditorView: View {
 
     private static func percent(_ value: Double) -> String {
         String(format: "%.0f%%", value * 100)
+    }
+}
+
+private struct StatusDisplayLivePreview: View {
+    let profile: AppearanceProfile
+    @Binding var selectedState: StateColorsEditorPreviewState
+    @State private var hoveredState:
+        StateColorsEditorPreviewState?
+
+    private var previewState: StateColorsEditorPreviewState {
+        StatusDisplayPreviewInteraction.previewState(
+            selected: selectedState,
+            hovered: hoveredState
+        )
+    }
+
+    private var appearance: ResolvedStatusItemAppearance {
+        previewState.appearance(for: profile)
+    }
+
+    private var displayData: ThemeStatusDisplayData {
+        ThemeStatusDisplayData(
+            primaryText: previewState.displayText,
+            resetText: previewState.isUnavailable ? nil : "1h34m",
+            weeklyText: previewState.isUnavailable ? nil : "49%"
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                Text("实时预览")
+                    .appearanceEditorFont(
+                        size: 9,
+                        weight: .black,
+                        design: .monospaced
+                    )
+                    .tracking(0.8)
+
+                Spacer(minLength: 8)
+
+                Text(
+                    StatusDisplayPreviewInteraction.guidanceText(
+                        hovered: hoveredState
+                    )
+                )
+                    .appearanceEditorFont(
+                        size: 8,
+                        weight: .bold,
+                        design: .monospaced
+                    )
+                    .opacity(0.58)
+            }
+
+            HStack {
+                Spacer(minLength: 0)
+                ThemeStatusChromePreview(
+                    appearance: appearance,
+                    data: displayData,
+                    showsFailurePattern:
+                        previewState.showsFailurePattern
+                )
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 6) {
+                Spacer(minLength: 0)
+                ForEach(
+                    StateColorsEditorPreviewState.allCases
+                ) { state in
+                    stateButton(state)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("状态栏设置实时预览")
+    }
+
+    private func stateButton(
+        _ state: StateColorsEditorPreviewState
+    ) -> some View {
+        let isPreviewed = previewState == state
+        let isSelected = selectedState == state
+        let stateAppearance = state.appearance(for: profile)
+        return Button {
+            withAnimation(.easeOut(duration: 0.12)) {
+                selectedState = state
+            }
+        } label: {
+            ZStack {
+                if isPreviewed {
+                    Rectangle()
+                        .fill(BrutalEditorStyle.ink)
+                        .frame(
+                            width: stateControlWidth(state),
+                            height: 18
+                        )
+                        .offset(x: 2, y: 2)
+                }
+
+                Rectangle()
+                    .fill(stateAppearance.fillColor.swiftUIColor)
+                    .frame(
+                        width: stateControlWidth(state),
+                        height: 18
+                    )
+                    .overlay {
+                        Rectangle()
+                            .strokeBorder(
+                                BrutalEditorStyle.ink,
+                                lineWidth: isPreviewed ? 2 : 1
+                            )
+                    }
+
+                Text(state.title)
+                    .appearanceEditorFont(
+                        size: 7.5,
+                        weight: .black,
+                        design: .monospaced
+                    )
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .foregroundStyle(
+                        stateAppearance.outlineColor.swiftUIColor
+                    )
+            }
+            .frame(
+                width: stateControlWidth(state) + 2,
+                height: 24
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering in
+            withAnimation(.easeOut(duration: 0.1)) {
+                hoveredState = StatusDisplayPreviewInteraction
+                    .hoveredState(
+                        current: hoveredState,
+                        target: state,
+                        isHovering: isHovering
+                    )
+            }
+        }
+        .help("悬停预览\(state.title)状态")
+        .accessibilityLabel("\(state.title)状态")
+        .accessibilityValue(isSelected ? "已选择" : "未选择")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier(
+            "status-display-preview-state-\(state.rawValue)"
+        )
+    }
+
+    private func stateControlWidth(
+        _ state: StateColorsEditorPreviewState
+    ) -> CGFloat {
+        state == .unavailable ? 50 : 42
     }
 }

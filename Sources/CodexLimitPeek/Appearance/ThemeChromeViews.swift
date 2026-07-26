@@ -697,6 +697,7 @@ struct ThemePanelChromePreview: View {
         ) {
             HStack(spacing: 8) {
                 previewAction(systemImage: "arrow.clockwise")
+                previewAction(systemImage: "gearshape.fill")
                 previewAction(systemImage: "ellipsis")
             }
         }

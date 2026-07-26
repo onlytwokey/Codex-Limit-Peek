@@ -212,9 +212,9 @@ enum DocumentationPreviewRenderer {
             title: "状态栏显示层"
         ),
         DocumentationSettingsCell(
-            page: .stateColors,
+            page: .statusItem,
             scrollTarget: .stateColorControls,
-            title: "高级状态颜色"
+            title: "状态颜色"
         )
     ]
 

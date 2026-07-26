@@ -74,7 +74,7 @@ Both build configurations package:
 
 ```text
 App name: Codex Limit Peek
-Bundle ID: io.github.onlytwokey.CodexLimitPeek
+Bundle ID: io.github.onlytwokey.CodexLimitPeek.MenuBar
 Executable: CodexLimitPeek
 ```
 

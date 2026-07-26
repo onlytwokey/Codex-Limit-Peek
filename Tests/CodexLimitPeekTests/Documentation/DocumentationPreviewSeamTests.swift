@@ -82,7 +82,22 @@ struct DocumentationPreviewSeamTests {
         #expect(
             AppearanceEditorDocumentationMetrics.trailingScrollSpace(
                 for: .panelControls
-            ) == MoreOverlayMetrics.statusItemSize.height
+            ) == MoreOverlayMetrics.appearanceSize.height
+        )
+        #expect(
+            AppearanceEditorDocumentationMetrics.trailingScrollSpace(
+                for: .panelColorControls
+            ) == MoreOverlayMetrics.appearanceSize.height
+        )
+        #expect(
+            AppearanceEditorDocumentationMetrics.trailingScrollSpace(
+                for: .panelGeometryControls
+            ) == MoreOverlayMetrics.appearanceSize.height
+        )
+        #expect(
+            AppearanceEditorDocumentationMetrics.trailingScrollSpace(
+                for: .panelShadowControls
+            ) == MoreOverlayMetrics.appearanceSize.height
         )
         #expect(
             AppearanceEditorDocumentationMetrics.trailingScrollSpace(
@@ -91,8 +106,18 @@ struct DocumentationPreviewSeamTests {
         )
         #expect(
             AppearanceEditorDocumentationMetrics.trailingScrollSpace(
+                for: .statusItemShadowControls
+            ) == MoreOverlayMetrics.statusItemSize.height
+        )
+        #expect(
+            AppearanceEditorDocumentationMetrics.trailingScrollSpace(
+                for: .statusItemGeometryControls
+            ) == MoreOverlayMetrics.statusItemSize.height
+        )
+        #expect(
+            AppearanceEditorDocumentationMetrics.trailingScrollSpace(
                 for: .stateColorControls
-            ) == MoreOverlayMetrics.stateColorsSize.height
+            ) == MoreOverlayMetrics.statusItemSize.height
         )
     }
 }

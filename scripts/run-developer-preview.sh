@@ -7,7 +7,7 @@ INSTALLED_APP="$INSTALL_DIR/Codex Limit Peek.app"
 DEVELOPMENT_APP="$ROOT_DIR/build/Codex Limit Peek.app"
 INSTALLED_EXECUTABLE="$INSTALLED_APP/Contents/MacOS/CodexLimitPeek"
 DEVELOPMENT_EXECUTABLE="$DEVELOPMENT_APP/Contents/MacOS/CodexLimitPeek"
-EXPECTED_BUNDLE_ID="io.github.onlytwokey.CodexLimitPeek"
+EXPECTED_BUNDLE_ID="io.github.onlytwokey.CodexLimitPeek.MenuBar"
 
 PRODUCTION_WAS_RUNNING=0
 PRODUCTION_PID=""

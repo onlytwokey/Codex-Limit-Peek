@@ -11,6 +11,7 @@ struct MoreOverlayInteractionView: View {
         MoreOverlayPage,
         AppearanceEditorInitialScrollTarget?
     ) -> Void
+    var onReturnToPanel: () -> Void = {}
     let onOpenCustomColor: (AppearanceColorEditTarget) -> Void
     var initialScrollTarget:
         AppearanceEditorInitialScrollTarget? = nil
@@ -65,37 +66,28 @@ struct MoreOverlayInteractionView: View {
 #if DEVELOPER_TOOLS
             ActionsPopover(
                 store: quotaStore,
-                appearanceStore: appearanceStore,
                 appearance: appearance,
-                onShowAppearance: { destination in
-                    onNavigate(
-                        destination.page,
-                        destination.initialScrollTarget
-                    )
-                },
                 onOpenDeveloperPreview: onOpenDeveloperPreview
             )
             .frame(width: MoreOverlayMetrics.actionsWidth)
 #else
             ActionsPopover(
                 store: quotaStore,
-                appearanceStore: appearanceStore,
-                appearance: appearance,
-                onShowAppearance: { destination in
-                    onNavigate(
-                        destination.page,
-                        destination.initialScrollTarget
-                    )
-                }
+                appearance: appearance
             )
             .frame(width: MoreOverlayMetrics.actionsWidth)
 #endif
         case .appearance:
             AppearanceEditorView(
                 store: appearanceStore,
-                onBack: { onNavigate(.actions, nil) },
+                onBack: {
+                    onNavigate(page.backDestination ?? .actions, nil)
+                },
                 onOpenCustomColor: { token in
                     onOpenCustomColor(.palette(token))
+                },
+                onOpenStatusDisplay: {
+                    onNavigate(.statusItem, .themeSelector)
                 }
             )
             .environment(
@@ -105,22 +97,11 @@ struct MoreOverlayInteractionView: View {
         case .statusItem:
             StatusItemEditorView(
                 store: appearanceStore,
-                onBack: { onNavigate(.appearance, nil) },
-                onOpenCustomColor: { token in
-                    onOpenCustomColor(.statusItem(token))
-                }
-            )
-            .environment(
-                \.appearanceEditorInitialScrollTarget,
-                resolvedInitialScrollTarget
-            )
-        case .stateColors:
-            StateColorsEditorView(
-                store: appearanceStore,
-                onBack: { onNavigate(.appearance, nil) },
-                onOpenCustomColor: { token in
-                    onOpenCustomColor(.palette(token))
-                }
+                onBack: {
+                    onNavigate(page.backDestination ?? .actions, nil)
+                },
+                onReturnToPanel: onReturnToPanel,
+                onOpenCustomColor: onOpenCustomColor
             )
             .environment(
                 \.appearanceEditorInitialScrollTarget,

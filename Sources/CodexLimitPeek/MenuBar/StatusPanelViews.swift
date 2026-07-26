@@ -31,12 +31,24 @@ struct StatusPanelView: View {
                     store.refresh()
                 }
 
-                MoreActionsMenu(
-                    store: store,
-                    appearanceStore: appearanceStore,
-                    appearance: appearance,
-                    moreOverlayPresenter: moreOverlayPresenter
-                )
+                HStack(spacing: 8) {
+                    AppearanceSettingsButton(
+                        appearance: appearance,
+                        moreOverlayPresenter: moreOverlayPresenter
+                    )
+
+                    MoreActionsMenu(
+                        store: store,
+                        appearanceStore: appearanceStore,
+                        appearance: appearance,
+                        moreOverlayPresenter: moreOverlayPresenter
+                    )
+                }
+                .background {
+                    MoreOverlayAnchorReader { anchor in
+                        moreOverlayPresenter.setAnchorView(anchor)
+                    }
+                }
             }
         }
         .frame(
@@ -177,6 +189,8 @@ struct RefreshIconButton: View {
                 }
         )
         .help("刷新")
+        .accessibilityLabel("刷新")
+        .accessibilityIdentifier("panel-action-refresh")
     }
 }
 
@@ -217,6 +231,55 @@ struct PanelIconFrame: View {
     }
 }
 
+struct AppearanceSettingsButton: View {
+    let appearance: ResolvedPanelAppearance
+    @ObservedObject var moreOverlayPresenter: MoreOverlayPresenter
+    @State private var isPressed = false
+    @State private var isHovered = false
+
+    private var isActive: Bool {
+        moreOverlayPresenter.isPresented
+            && moreOverlayPresenter.page != .actions
+    }
+
+    var body: some View {
+        Button {
+            moreOverlayPresenter.present(.overview)
+        } label: {
+            PanelIconFrame(
+                systemImage: "gearshape.fill",
+                appearance: appearance,
+                isPressed: isPressed || isActive,
+                isHovered: isHovered || isActive
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.08)) {
+                isHovered = hovering
+            }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if isPressed == false {
+                        withAnimation(.easeOut(duration: 0.035)) {
+                            isPressed = true
+                        }
+                    }
+                }
+                .onEnded { _ in
+                    withAnimation(.spring(response: 0.12, dampingFraction: 0.72)) {
+                        isPressed = false
+                    }
+                }
+        )
+        .help("外观设置")
+        .accessibilityLabel("外观设置")
+        .accessibilityIdentifier("panel-action-appearance")
+    }
+}
+
 struct MoreActionsMenu: View {
     @ObservedObject var store: QuotaStore
     @ObservedObject var appearanceStore: AppearanceStore
@@ -224,6 +287,11 @@ struct MoreActionsMenu: View {
     @ObservedObject var moreOverlayPresenter: MoreOverlayPresenter
     @State private var isPressed = false
     @State private var isHovered = false
+
+    private var isActive: Bool {
+        moreOverlayPresenter.isPresented
+            && moreOverlayPresenter.page == .actions
+    }
 
     var body: some View {
         Button {
@@ -233,17 +301,12 @@ struct MoreActionsMenu: View {
                 systemImage: "ellipsis",
                 appearance: appearance,
                 isPressed:
-                    isPressed || moreOverlayPresenter.isPresented,
+                    isPressed || isActive,
                 isHovered:
-                    isHovered || moreOverlayPresenter.isPresented
+                    isHovered || isActive
             )
         }
         .buttonStyle(.plain)
-        .background {
-            MoreOverlayAnchorReader { anchor in
-                moreOverlayPresenter.setAnchorView(anchor)
-            }
-        }
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.08)) {
                 isHovered = hovering
@@ -266,14 +329,13 @@ struct MoreActionsMenu: View {
         )
         .help("更多")
         .accessibilityLabel("更多")
+        .accessibilityIdentifier("panel-action-more")
     }
 }
 
 struct ActionsPopover: View {
     @ObservedObject var store: QuotaStore
-    @ObservedObject var appearanceStore: AppearanceStore
     let appearance: ResolvedPanelAppearance
-    let onShowAppearance: (MoreOverlayAppearanceDestination) -> Void
 #if DEVELOPER_TOOLS
     var onOpenDeveloperPreview: (@MainActor () -> Void)? = nil
 #endif
@@ -328,51 +390,6 @@ struct ActionsPopover: View {
                     )
                 }
             }
-
-            Divider()
-
-            Button {
-                withAnimation(.easeOut(duration: 0.12)) {
-                    onShowAppearance(.overview)
-                }
-            } label: {
-                ActionMenuRow(
-                    systemImage: "paintpalette.fill",
-                    title: "外观",
-                    trailing: appearanceStore.selectedTheme.displayName,
-                    appearance: appearance
-                )
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(
-                MoreOverlayAppearanceDestination.overview
-                    .accessibilityIdentifier
-            )
-
-            VStack(spacing: 6) {
-                ForEach(
-                    MoreOverlayAppearanceDestination.shortcuts
-                ) { destination in
-                    Button {
-                        withAnimation(.easeOut(duration: 0.12)) {
-                            onShowAppearance(destination)
-                        }
-                    } label: {
-                        AppearanceActionSubrow(
-                            title: destination.title,
-                            appearance: appearance
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier(
-                        destination.accessibilityIdentifier
-                    )
-                    .accessibilityLabel(
-                        "打开\(destination.title)设置"
-                    )
-                }
-            }
-            .padding(.leading, 18)
 
 #if DEVELOPER_TOOLS
             if let onOpenDeveloperPreview {
@@ -476,51 +493,6 @@ struct ActionMenuRow: View {
         .foregroundStyle(appearance.textColor.swiftUIColor)
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
-        .contentShape(Rectangle())
-        .themeSurface(
-            appearance: appearance,
-            chrome: appearance.visuals.menuRow,
-            fill: appearance.surfaceColor
-        )
-    }
-}
-
-struct AppearanceActionSubrow: View {
-    let title: String
-    let appearance: ResolvedPanelAppearance
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Rectangle()
-                .fill(appearance.textColor.swiftUIColor.opacity(0.62))
-                .frame(width: 6, height: 2)
-
-            Text(title)
-                .font(
-                    .system(
-                        size: CGFloat(
-                            11 * appearance.geometry.fontScale
-                        ),
-                        weight: .semibold
-                    )
-                )
-
-            Spacer(minLength: 6)
-
-            Image(systemName: "chevron.right")
-                .font(
-                    .system(
-                        size: CGFloat(
-                            8 * appearance.geometry.fontScale
-                        ),
-                        weight: .black
-                    )
-                )
-                .opacity(0.68)
-        }
-        .foregroundStyle(appearance.textColor.swiftUIColor)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
         .contentShape(Rectangle())
         .themeSurface(
             appearance: appearance,
