@@ -330,7 +330,7 @@ struct ThemeVisualRecipe: Equatable, Sendable {
                     shadow: .hard(depth: 2, opacity: 0.72)
                 ),
                 statusReferenceColor: nil,
-                statusFillOpacity: 0.3,
+                statusFillOpacity: 1,
                 statusLightening: 0,
                 statusHorizontalPadding: 7,
                 statusTagHeight: 18,

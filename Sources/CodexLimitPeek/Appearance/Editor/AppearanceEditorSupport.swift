@@ -373,47 +373,104 @@ enum AppearanceEditorPalette {
                 AppearanceColor(hex: 0xC659FF)
             ]
         case .normal:
-            colors = [
-                AppearanceColor(hex: 0x4FC9C1),
-                AppearanceColor(hex: 0x44C7B7),
-                AppearanceColor(hex: 0x55B8FF),
-                AppearanceColor(hex: 0x66CF72),
-                AppearanceColor(hex: 0xB5D94C)
-            ]
+            colors = stateSwatches(
+                theme: theme,
+                loud: [
+                    0x4FC9C1, 0x3B82F6, 0x5DBB63,
+                    0x8A6BFF, 0x006B72
+                ],
+                bold: [
+                    0x45C7BB, 0x004C9E, 0x146B32,
+                    0x737900, 0x12323A
+                ],
+                frost: [
+                    0x4FC9C1, 0x77A9DF, 0x61A884,
+                    0x8B7DD6, 0x3B7180
+                ]
+            )
         case .warning:
-            colors = [
-                AppearanceColor(hex: 0xFF9F1C),
-                AppearanceColor(hex: 0xE8BE3F),
-                AppearanceColor(hex: 0xFFD15C),
-                AppearanceColor(hex: 0xFFB36B),
-                AppearanceColor(hex: 0xD5A7FF)
-            ]
+            colors = stateSwatches(
+                theme: theme,
+                loud: [
+                    0xFF9F1C, 0xFFD60A, 0xB99A00,
+                    0xFFB48A, 0x8A4B00
+                ],
+                bold: [
+                    0xE8BE3F, 0xFFF6C2, 0x806000,
+                    0xC24A12, 0x442800
+                ],
+                frost: [
+                    0xE3BB55, 0xF5E6A1, 0xB28B45,
+                    0xE7A17E, 0x7A5935
+                ]
+            )
         case .danger:
-            colors = [
-                AppearanceColor(hex: 0xFF676B),
-                AppearanceColor(hex: 0xE76B68),
-                AppearanceColor(hex: 0xE46D78),
-                AppearanceColor(hex: 0xFF5A9D),
-                AppearanceColor(hex: 0xC659FF)
-            ]
+            colors = stateSwatches(
+                theme: theme,
+                loud: [
+                    0xFF676B, 0xD90429, 0xD8327D,
+                    0xB743E6, 0x6D1F2A
+                ],
+                bold: [
+                    0xE76B68, 0x9A0030, 0xB50078,
+                    0x4F1A78, 0x3A0C16
+                ],
+                frost: [
+                    0xE46D78, 0xB83B58, 0xC94F91,
+                    0x8354A7, 0x663844
+                ]
+            )
         case .unavailableBase:
-            colors = [
-                .white,
-                AppearanceColor(hex: 0xE9E6DE),
-                AppearanceColor(hex: 0xEFF4F5),
-                AppearanceColor(hex: 0xD8D8D8),
-                AppearanceColor(hex: 0x242424)
-            ]
+            colors = stateSwatches(
+                theme: theme,
+                loud: [
+                    0xFFFFFF, 0xC6E6FF, 0xC9DBB7,
+                    0xD9C8FF, 0x23252B
+                ],
+                bold: [
+                    0xE9E6DE, 0x9BBFD1, 0xA9C28F,
+                    0xC9947E, 0x292A2B
+                ],
+                frost: [
+                    0xEFF4F5, 0xAACBE6, 0x9DC9B0,
+                    0xC3A8D8, 0x2A3842
+                ]
+            )
         case .unavailableStripe:
-            colors = [
-                AppearanceColor(hex: 0xFF676B),
-                AppearanceColor(hex: 0xC55B59),
-                AppearanceColor(hex: 0xCE6670),
-                AppearanceColor(hex: 0xFF9F1C),
-                AppearanceColor(hex: 0x6D65E8)
-            ]
+            colors = stateSwatches(
+                theme: theme,
+                loud: [
+                    0xFF676B, 0x1F5FBF, 0x657300,
+                    0x7A4CC2, 0xE8EFF2
+                ],
+                bold: [
+                    0xC55B59, 0x49647A, 0x4F5D2A,
+                    0x6D3A2A, 0xB6BEC1
+                ],
+                frost: [
+                    0xCE6670, 0x3E739B, 0x356653,
+                    0x5C4088, 0xD4E4EB
+                ]
+            )
         }
         return colors
+    }
+
+    private static func stateSwatches(
+        theme: AppearanceThemeID,
+        loud: [UInt32],
+        bold: [UInt32],
+        frost: [UInt32]
+    ) -> [AppearanceColor] {
+        let hexValues = switch theme {
+        case .loud:
+            loud
+        case .bold:
+            bold
+        case .frost:
+            frost
+        }
+        return hexValues.map { AppearanceColor(hex: $0) }
     }
 
     static func statusItemSwatches(

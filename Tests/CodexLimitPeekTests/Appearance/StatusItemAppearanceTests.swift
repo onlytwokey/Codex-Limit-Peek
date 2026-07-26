@@ -28,11 +28,56 @@ struct StatusItemAppearanceTests {
         #expect(frost.shadowHorizontalOffset == 2)
         #expect(frost.shadowVerticalOffset == 2)
         #expect(frost.shadowBlur == 0)
-        #expect(frost.fillColor.alpha == 0.3)
+        #expect(
+            frost.fillColor
+                == AppearanceProfile.default(for: .frost).palette.normal
+        )
+        #expect(frost.fillColor.alpha == 1)
 
         #expect(loud.weeklyTextColor == loud.primaryTextColor)
         #expect(bold.weeklyTextColor == bold.primaryTextColor)
         #expect(frost.weeklyTextColor == frost.primaryTextColor)
+    }
+
+    @Test
+    func frostStatusUsesRawSemanticColorsWithoutWallpaperTransparency() {
+        let profile = AppearanceProfile.default(for: .frost)
+        let cases: [(remainingPercent: Int, expected: AppearanceColor)] = [
+            (81, profile.palette.normal),
+            (35, profile.palette.warning),
+            (12, profile.palette.danger)
+        ]
+
+        for item in cases {
+            let resolved = AppearanceResolver.status(
+                profile: profile,
+                primaryRemainingPercent: item.remainingPercent,
+                weeklyRemainingPercent: 49,
+                isUnavailable: false,
+                showsFailurePattern: false
+            )
+
+            #expect(resolved.fillColor == item.expected)
+            #expect(resolved.fillColor.alpha == 1)
+        }
+    }
+
+    @Test
+    func frostStatusPreservesCustomColorAlphaBelowRecipeCap() {
+        var profile = AppearanceProfile.default(for: .frost)
+        let customNormal = AppearanceColor(hex: 0x77A9DF, alpha: 0.42)
+        profile.palette.normal = customNormal
+
+        let resolved = AppearanceResolver.status(
+            profile: profile,
+            primaryRemainingPercent: 81,
+            weeklyRemainingPercent: 49,
+            isUnavailable: false,
+            showsFailurePattern: false
+        )
+
+        #expect(resolved.fillColor == customNormal)
+        #expect(resolved.fillColor.alpha == 0.42)
     }
 
     @Test @MainActor

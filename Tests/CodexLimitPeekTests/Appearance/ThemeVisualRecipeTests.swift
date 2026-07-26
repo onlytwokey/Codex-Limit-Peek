@@ -132,7 +132,9 @@ struct ThemeVisualRecipeTests {
         #expect(recipe.quotaCard.cornerRadius == 10)
         #expect(recipe.quotaSurfaceOpacity == 0.38)
         #expect(recipe.actionSurfaceOpacity == 0.72)
-        #expect(recipe.statusFillOpacity == 0.3)
+        #expect(recipe.statusFillOpacity == 1)
+        #expect(recipe.statusLightening == 0)
+        #expect(recipe.statusReferenceColor == nil)
         #expect(recipe.typography.percentFamily == .rounded)
     }
 
