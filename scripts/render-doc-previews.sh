@@ -8,6 +8,10 @@ ASSETS=(
   "panel-preview.png"
   "quota-states-loud.png"
   "refresh-states-loud.png"
+  "appearance-panel-settings-loud.png"
+  "appearance-status-settings-loud.png"
+)
+OBSOLETE_ASSETS=(
   "appearance-settings-loud.png"
 )
 
@@ -15,6 +19,8 @@ STAGING=""
 NEW_PATHS=()
 BACKUP_PATHS=()
 HAD_ORIGINAL=()
+OBSOLETE_BACKUP_PATHS=()
+OBSOLETE_HAD_ORIGINAL=()
 lock_acquired=0
 replacement_started=0
 replacement_committed=0
@@ -52,6 +58,34 @@ restore_originals() {
   done
 }
 
+restore_obsolete_assets() {
+  local index
+  local asset
+  local target
+  local backup
+
+  for ((index = 0; index < ${#OBSOLETE_ASSETS[@]}; index += 1)); do
+    asset="${OBSOLETE_ASSETS[$index]}"
+    target="$IMAGE_DIR/$asset"
+    backup="${OBSOLETE_BACKUP_PATHS[$index]:-}"
+
+    if [[ "${OBSOLETE_HAD_ORIGINAL[$index]:-0}" == "1" ]]; then
+      if [[ -n "$backup" && -e "$backup" ]]; then
+        if /bin/mv -f "$backup" "$target"; then
+          OBSOLETE_BACKUP_PATHS[$index]=""
+        else
+          echo "failed to restore $target" >&2
+        fi
+      else
+        echo "missing rollback copy for $target" >&2
+      fi
+    elif [[ -e "$target" ]]; then
+      unlink "$target" \
+        || echo "failed to remove obsolete target $target" >&2
+    fi
+  done
+}
+
 cleanup() {
   local status=$?
   local path
@@ -62,6 +96,7 @@ cleanup() {
 
   if (( replacement_started && ! replacement_committed )); then
     restore_originals
+    restore_obsolete_assets
   fi
 
   for path in "${NEW_PATHS[@]:-}"; do
@@ -76,10 +111,20 @@ cleanup() {
         unlink "$path"
       fi
     done
+    for path in "${OBSOLETE_BACKUP_PATHS[@]:-}"; do
+      if [[ -n "$path" && -e "$path" ]]; then
+        unlink "$path"
+      fi
+    done
   else
     for path in "${BACKUP_PATHS[@]:-}"; do
       if [[ -n "$path" && -e "$path" ]]; then
         echo "original documentation image retained at $path" >&2
+      fi
+    done
+    for path in "${OBSOLETE_BACKUP_PATHS[@]:-}"; do
+      if [[ -n "$path" && -e "$path" ]]; then
+        echo "obsolete documentation image retained at $path" >&2
       fi
     done
   fi
@@ -196,6 +241,25 @@ for asset in "${ASSETS[@]}"; do
   fi
 done
 
+for asset in "${OBSOLETE_ASSETS[@]}"; do
+  target="$IMAGE_DIR/$asset"
+
+  if [[ -f "$target" ]]; then
+    backup="$(
+      mktemp "$IMAGE_DIR/.$asset.rollback.XXXXXX"
+    )"
+    OBSOLETE_BACKUP_PATHS[${#OBSOLETE_BACKUP_PATHS[@]}]="$backup"
+    /bin/cp -p "$target" "$backup"
+    OBSOLETE_HAD_ORIGINAL[${#OBSOLETE_HAD_ORIGINAL[@]}]=1
+  elif [[ -e "$target" ]]; then
+    echo "obsolete documentation image is not a regular file: $target" >&2
+    exit 1
+  else
+    OBSOLETE_BACKUP_PATHS[${#OBSOLETE_BACKUP_PATHS[@]}]=""
+    OBSOLETE_HAD_ORIGINAL[${#OBSOLETE_HAD_ORIGINAL[@]}]=0
+  fi
+done
+
 for asset in "${ASSETS[@]}"; do
   new_path="$(
     mktemp "$IMAGE_DIR/.$asset.new.XXXXXX"
@@ -208,7 +272,8 @@ done
   "${NEW_PATHS[0]}" \
   "${NEW_PATHS[1]}" \
   "${NEW_PATHS[2]}" \
-  "${NEW_PATHS[3]}"
+  "${NEW_PATHS[3]}" \
+  "${NEW_PATHS[4]}"
 
 replacement_started=1
 for ((index = 0; index < ${#ASSETS[@]}; index += 1)); do
@@ -216,6 +281,12 @@ for ((index = 0; index < ${#ASSETS[@]}; index += 1)); do
     "${NEW_PATHS[$index]}" \
     "$IMAGE_DIR/${ASSETS[$index]}"
   NEW_PATHS[$index]=""
+done
+
+for asset in "${OBSOLETE_ASSETS[@]}"; do
+  if [[ -e "$IMAGE_DIR/$asset" ]]; then
+    unlink "$IMAGE_DIR/$asset"
+  fi
 done
 
 "$ROOT_DIR/scripts/validate-doc-images.sh"
@@ -230,6 +301,13 @@ done
 
 replacement_committed=1
 for asset in "${ASSETS[@]}"; do
+  find "$IMAGE_DIR" \
+    -maxdepth 1 \
+    -type f \
+    -name ".$asset.rollback.*" \
+    -exec unlink {} \;
+done
+for asset in "${OBSOLETE_ASSETS[@]}"; do
   find "$IMAGE_DIR" \
     -maxdepth 1 \
     -type f \

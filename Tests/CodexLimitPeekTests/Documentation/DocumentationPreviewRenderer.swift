@@ -1326,7 +1326,7 @@ private struct DocumentationSettingsAtlas: View {
         ZStack {
             DocumentationLOUDStyle.yellow
 
-            VStack(spacing: 16) {
+            VStack(spacing: 12) {
                 HStack(alignment: .top, spacing: 16) {
                     ForEach(
                         Array(
@@ -1349,7 +1349,8 @@ private struct DocumentationSettingsAtlas: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
         .frame(
             width: DocumentationPreviewRenderer
@@ -1362,7 +1363,7 @@ private struct DocumentationSettingsAtlas: View {
     private func atlasCell(
         _ cell: DocumentationSettingsCell
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(cell.title)
                 .font(
                     .system(
@@ -1374,7 +1375,7 @@ private struct DocumentationSettingsAtlas: View {
                 .foregroundStyle(
                     DocumentationLOUDStyle.ink
                 )
-                .frame(height: 20)
+                .frame(height: 26)
 
             DocumentationOverlayPage(
                 quotaStore: quotaStore,
@@ -1382,11 +1383,15 @@ private struct DocumentationSettingsAtlas: View {
                 page: cell.page,
                 scrollTarget: cell.scrollTarget
             )
+            .offset(
+                y: cell.page == .statusItem ? 12 : 0
+            )
         }
         .frame(
             width: 336,
-            height: 576,
+            height: 582,
             alignment: .topLeading
         )
+        .clipped()
     }
 }
